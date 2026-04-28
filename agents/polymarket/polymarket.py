@@ -44,8 +44,13 @@ class Polymarket:
 
         self.chain_id = 137  # POLYGON
         self.private_key = os.getenv("POLYGON_WALLET_PRIVATE_KEY")
-        self.polygon_rpc = "https://polygon.llamarpc.com"
-        self.w3 = Web3(Web3.HTTPProvider(self.polygon_rpc))
+        self.polygon_rpc_endpoints = [
+            "https://polygon-rpc.com",
+            "https://rpc-mainnet.matic.network",
+            "https://matic-mainnet.chainstacklabs.com",
+            "https://polygon-bor.publicnode.com",
+        ]
+        self.w3 = self._connect_web3()
 
         self.exchange_address = "0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e"
         self.neg_risk_exchange_address = "0xC5d563A36AE78145C45a50134d48A1215220f80a"
@@ -56,7 +61,7 @@ class Polymarket:
         self.usdc_address = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
         self.ctf_address = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
 
-        self.web3 = Web3(Web3.HTTPProvider(self.polygon_rpc))
+        self.web3 = self._connect_web3()
         self.web3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
 
         self.usdc = self.web3.eth.contract(
@@ -68,6 +73,19 @@ class Polymarket:
 
         self._init_api_keys()
         self._init_approvals(False)
+
+    def _connect_web3(self) -> Web3:
+        for rpc in self.polygon_rpc_endpoints:
+            try:
+                w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 10}))
+                if w3.is_connected():
+                    self.polygon_rpc = rpc
+                    return w3
+            except Exception:
+                continue
+        raise ConnectionError(
+            f"All Polygon RPC endpoints failed: {self.polygon_rpc_endpoints}"
+        )
 
     def _init_api_keys(self) -> None:
         self.client = ClobClient(
@@ -458,7 +476,7 @@ if __name__ == "__main__":
     
     """
 
-    # https://polygon.llamarpc.com
+    # https://polygon-rpc.com (primary, with fallbacks)
 
     test_market_token_id = (
         "101669189743438912873361127612589311253202068943959811456820079057046819967115"
