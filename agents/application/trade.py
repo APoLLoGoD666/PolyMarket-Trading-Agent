@@ -82,21 +82,26 @@ class Trader:
             logger.warning("STEP 4 FAILED: Market filter removed all %d markets.", len(markets))
             return None
 
-        # Pick the first market that has at least one valid outcome price
+        # Pick the first market that has valid outcome prices AND CLOB token IDs
         market = None
         market_meta = None
         for i, candidate in enumerate(filtered_markets):
             meta = candidate[0].dict()["metadata"]
-            raw = meta.get("outcome_prices") or "[]"
+            raw_prices = meta.get("outcome_prices") or "[]"
+            raw_clob = meta.get("clob_token_ids") or "[]"
             try:
-                prices = ast.literal_eval(raw)
+                prices = ast.literal_eval(raw_prices)
             except Exception:
                 prices = []
+            try:
+                clob_ids = ast.literal_eval(raw_clob)
+            except Exception:
+                clob_ids = []
             logger.info(
-                "4b. Candidate %d: %r → outcome_prices=%r",
-                i, meta.get("question", "")[:80], prices
+                "4b. Candidate %d: %r → prices=%r, clob_ids=%r",
+                i, meta.get("question", "")[:80], prices, clob_ids
             )
-            if prices:
+            if prices and clob_ids:
                 market = candidate
                 market_meta = meta
                 break
@@ -115,15 +120,15 @@ class Trader:
         best_trade = self.agent.source_best_trade(market)
         logger.info("5. CALCULATED TRADE %s", best_trade)
 
-        amount = self.agent.format_trade_prompt_for_execution(best_trade)
-        logger.info("5b. TRADE SIZE $%.2f (capped at 10%% of wallet)", amount)
+        amount, outcome = self.agent.format_trade_prompt_for_execution(best_trade)
+        logger.info("5b. TRADE SIZE $%.2f (capped at 10%% of wallet), OUTCOME: %s", amount, outcome)
 
         if amount < 1.0:
             logger.warning("STEP 5b FAILED: Trade size $%.2f too small, skipping.", amount)
             return None
 
         try:
-            trade = self.polymarket.execute_market_order(market, amount)
+            trade = self.polymarket.execute_market_order(market, amount, outcome)
         except Exception as e:
             error_msg = f"Trade execution failed: {e}"
             logger.error(error_msg)

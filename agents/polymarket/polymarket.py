@@ -288,7 +288,7 @@ class Polymarket:
             "featured": event["featured"],
             "restricted": event["restricted"],
             "end": event["endDate"],
-            "markets": ",".join([x["id"] for x in event["markets"]]),
+            "markets": ",".join([str(x["id"]) for x in event["markets"]]),
         }
 
     def filter_events_for_trading(
@@ -360,16 +360,27 @@ class Polymarket:
             OrderArgs(price=price, size=size, side=side, token_id=token_id)
         )
 
-    def execute_market_order(self, market, amount) -> str:
-        token_id = ast.literal_eval(market[0].dict()["metadata"]["clob_token_ids"])[1]
-        order_args = MarketOrderArgs(
-            token_id=token_id,
-            amount=amount,
-        )
+    def execute_market_order(self, market, amount, outcome: str = None) -> str:
+        meta = market[0].dict()["metadata"]
+        clob_ids = ast.literal_eval(meta["clob_token_ids"])
+        if not clob_ids:
+            raise ValueError("Market has no CLOB token IDs — cannot place order")
+
+        outcomes = ast.literal_eval(meta.get("outcomes", "[]"))
+        token_id = clob_ids[0]  # default: first outcome
+        if outcome and outcomes:
+            try:
+                idx = [o.strip().lower() for o in outcomes].index(outcome.strip().lower())
+                token_id = clob_ids[idx]
+            except (ValueError, IndexError):
+                print(f"Outcome '{outcome}' not found in {outcomes}, defaulting to first token")
+
+        print(f"Placing market order: outcome={outcome}, token_id={token_id}, amount={amount}")
+        order_args = MarketOrderArgs(token_id=token_id, amount=amount)
         signed_order = self.client.create_market_order(order_args)
-        print("Execute market order... signed_order ", signed_order)
+        print("Signed order: ", signed_order)
         resp = self.client.post_order(signed_order, orderType=OrderType.FOK)
-        print(resp)
+        print("Response:", resp)
         print("Done!")
         return resp
 

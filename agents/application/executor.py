@@ -199,18 +199,30 @@ class Executor:
         print()
         return content
 
-    def format_trade_prompt_for_execution(self, best_trade: str) -> float:
+    def format_trade_prompt_for_execution(self, best_trade: str) -> tuple:
+        import logging
+        log = logging.getLogger(__name__)
+
         size_match = re.search(r'size\s*[:=]\s*(\d+\.?\d*)', best_trade, re.IGNORECASE)
         if not size_match:
             raise ValueError(f"Could not parse size from trade response: {best_trade[:200]}")
         size = float(size_match.group(1))
+        # Claude should output a decimal fraction (0.05 = 5%). Guard against Claude
+        # returning a whole percentage like 5 instead of 0.05.
+        if size > 1.0:
+            size = size / 100.0
+
+        outcome_match = re.search(r'outcome\s*[:=]\s*[\'"]?(\w+)[\'"]?', best_trade, re.IGNORECASE)
+        outcome = outcome_match.group(1) if outcome_match else None
+        log.info("Parsed trade — size fraction: %.4f, outcome: %s", size, outcome)
+
         usdc_balance = self.polymarket.get_usdc_balance()
         amount = size * usdc_balance
-        max_amount = 0.10 * usdc_balance  # never bet more than 10% of wallet on a single trade
+        max_amount = 0.10 * usdc_balance
         if amount > max_amount:
-            print(f"Trade size ${amount:.2f} exceeds 10% cap (${max_amount:.2f}), clamping.")
+            log.info("Trade size $%.2f exceeds 10%% cap ($%.2f), clamping.", amount, max_amount)
             amount = max_amount
-        return amount
+        return amount, outcome
 
     def source_best_market_to_create(self, filtered_markets) -> str:
         prompt = self.prompter.create_new_market(filtered_markets)

@@ -169,9 +169,10 @@ class Prompter:
 
         Given your prediction, respond with a genius trade in the format:
         `
+            outcome:'the outcome you are buying e.g. Yes or No',
             price:'price_on_the_orderbook',
-            size:'percentage_of_total_funds',
-            side: BUY or SELL,
+            size:'percentage_of_total_funds as a decimal e.g. 0.05 for 5%',
+            side: BUY,
         `
 
         Your trade should approximate price using the likelihood in your prediction.
@@ -179,8 +180,9 @@ class Prompter:
         Example response:
 
         RESPONSE```
+            outcome:Yes,
             price:0.5,
-            size:0.1,
+            size:0.05,
             side:BUY,
         ```
         
