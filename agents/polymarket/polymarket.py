@@ -367,22 +367,39 @@ class Polymarket:
             raise ValueError("Market has no CLOB token IDs — cannot place order")
 
         outcomes = ast.literal_eval(meta.get("outcomes", "[]"))
-        token_id = clob_ids[0]  # default: first outcome
+
+        # Build ordered list of token IDs to try: preferred outcome first, then the rest
+        preferred_idx = 0
         if outcome and outcomes:
             try:
-                idx = [o.strip().lower() for o in outcomes].index(outcome.strip().lower())
-                token_id = clob_ids[idx]
+                preferred_idx = [o.strip().lower() for o in outcomes].index(outcome.strip().lower())
             except (ValueError, IndexError):
-                print(f"Outcome '{outcome}' not found in {outcomes}, defaulting to first token")
+                preferred_idx = 0
 
-        print(f"Placing market order: outcome={outcome}, token_id={token_id}, amount={amount}")
-        order_args = MarketOrderArgs(token_id=token_id, amount=amount)
-        signed_order = self.client.create_market_order(order_args)
-        print("Signed order: ", signed_order)
-        resp = self.client.post_order(signed_order, orderType=OrderType.FOK)
-        print("Response:", resp)
-        print("Done!")
-        return resp
+        indices_to_try = [preferred_idx] + [i for i in range(len(clob_ids)) if i != preferred_idx]
+
+        last_error = None
+        for idx in indices_to_try:
+            if idx >= len(clob_ids):
+                continue
+            token_id = clob_ids[idx]
+            label = outcomes[idx] if idx < len(outcomes) else str(idx)
+            print(f"Trying market order: outcome={label}, token_id={token_id}, amount={amount}")
+            try:
+                order_args = MarketOrderArgs(token_id=token_id, amount=amount)
+                signed_order = self.client.create_market_order(order_args)
+                resp = self.client.post_order(signed_order, orderType=OrderType.FOK)
+                print("Response:", resp)
+                print("Done!")
+                return resp
+            except Exception as e:
+                if "404" in str(e) or "No orderbook" in str(e):
+                    print(f"No orderbook for token {label} ({token_id}), trying next token...")
+                    last_error = e
+                    continue
+                raise
+
+        raise ValueError(f"No active orderbook found for any token in this market: {last_error}")
 
     def get_usdc_balance(self) -> float:
         address = self.get_address_for_private_key()

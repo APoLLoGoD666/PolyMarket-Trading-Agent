@@ -2,6 +2,7 @@ import os
 import json
 import ast
 import re
+import logging
 from typing import List, Dict, Any, Optional
 
 import math
@@ -10,33 +11,33 @@ import anthropic
 from dotenv import load_dotenv
 
 from agents.polymarket.gamma import GammaMarketClient as Gamma
-from agents.connectors.chroma import PolymarketRAG as Chroma
 from agents.utils.objects import SimpleEvent, SimpleMarket
 from agents.application.prompts import Prompter
 from agents.polymarket.polymarket import Polymarket
 
-def retain_keys(data, keys_to_retain):
-    if isinstance(data, dict):
-        return {
-            key: retain_keys(value, keys_to_retain)
-            for key, value in data.items()
-            if key in keys_to_retain
-        }
-    elif isinstance(data, list):
-        return [retain_keys(item, keys_to_retain) for item in data]
-    else:
-        return data
+log = logging.getLogger(__name__)
+
+
+class __Document:
+    """Minimal stand-in for langchain _Document — avoids the entire langchain dependency."""
+    def __init__(self, page_content: str, metadata: dict):
+        self.page_content = page_content
+        self.metadata = metadata
+
+    def dict(self):
+        return {"page_content": self.page_content, "metadata": self.metadata}
+
+    def json(self):
+        return json.dumps(self.dict(), default=str)
+
 
 class Executor:
     def __init__(self, default_model='claude-sonnet-4-6') -> None:
         load_dotenv()
-        max_token_model = {'claude-sonnet-4-6': 180000}
         self.model = default_model
-        self.token_limit = max_token_model.get(default_model, 180000)
         self.prompter = Prompter()
         self.client = anthropic.Anthropic()
         self.gamma = Gamma()
-        self.chroma = Chroma()
         self.polymarket = Polymarket()
 
     def _invoke(self, prompt: str, system: Optional[str] = None) -> str:
@@ -54,88 +55,48 @@ class Executor:
         system = str(self.prompter.market_analyst())
         return self._invoke(user_input, system=system)
 
-    def get_superforecast(
-        self, event_title: str, market_question: str, outcome: str
-    ) -> str:
+    def get_superforecast(self, event_title: str, market_question: str, outcome: str) -> str:
         prompt = self.prompter.superforecaster(
             description=event_title, question=market_question, outcome=outcome
         )
         return self._invoke(prompt)
 
+    def filter_events_with_rag(self, events: "list[SimpleEvent]") -> list:
+        """Ask Claude to pick the most tradeable events — no ChromaDB needed."""
+        if not events:
+            return []
 
-    def estimate_tokens(self, text: str) -> int:
-        # This is a rough estimate. For more accurate results, consider using a tokenizer.
-        return len(text) // 4  # Assuming average of 4 characters per token
+        sample = events[:40]
+        lines = "\n".join(
+            f"{i}: {e.title} — {(e.description or '')[:120]}"
+            for i, e in enumerate(sample)
+        )
+        prompt = (
+            f"You are a Polymarket prediction market analyst.\n\n"
+            f"Here are {len(sample)} active prediction market events:\n{lines}\n\n"
+            f"Select the 4 most interesting and tradeable events for right now.\n"
+            f"Reply with ONLY a comma-separated list of numbers, e.g.: 2,7,15,33"
+        )
+        try:
+            raw = self._invoke(prompt).strip()
+            indices = [int(x.strip()) for x in re.split(r'[,\s]+', raw) if x.strip().isdigit()]
+            indices = [i for i in indices if i < len(sample)][:4]
+            log.info("Claude selected event indices: %s", indices)
+        except Exception as e:
+            log.warning("Claude event filter failed (%s) — using first 4 events", e)
+            indices = list(range(min(4, len(sample))))
 
-    def process_data_chunk(self, data1: List[Dict[Any, Any]], data2: List[Dict[Any, Any]], user_input: str) -> str:
-        system = str(self.prompter.prompts_polymarket(data1=data1, data2=data2))
-        return self._invoke(user_input, system=system)
+        result = []
+        for i in indices:
+            e = sample[i]
+            doc = _Document(
+                page_content=e.description or e.title or "",
+                metadata={"id": str(e.id), "markets": e.markets},
+            )
+            result.append((doc, 1.0))
+        return result
 
-
-    def divide_list(self, original_list, i):
-        # Calculate the size of each sublist
-        sublist_size = math.ceil(len(original_list) / i)
-
-        # Use list comprehension to create sublists
-        return [original_list[j:j+sublist_size] for j in range(0, len(original_list), sublist_size)]
-
-    def get_polymarket_llm(self, user_input: str) -> str:
-        data1 = self.gamma.get_current_events()
-        data2 = self.gamma.get_current_markets()
-
-        combined_data = str(self.prompter.prompts_polymarket(data1=data1, data2=data2))
-
-        # Estimate total tokens
-        total_tokens = self.estimate_tokens(combined_data)
-
-        # Set a token limit (adjust as needed, leaving room for system and user messages)
-        token_limit = self.token_limit
-        if total_tokens <= token_limit:
-            # If within limit, process normally
-            return self.process_data_chunk(data1, data2, user_input)
-        else:
-            # If exceeding limit, process in chunks
-            chunk_size = len(combined_data) // ((total_tokens // token_limit) + 1)
-            print(f'total tokens {total_tokens} exceeding llm capacity, now will split and answer')
-            group_size = (total_tokens // token_limit) + 1 # 3 is safe factor
-            keys_no_meaning = ['image','pagerDutyNotificationEnabled','resolvedBy','endDate','clobTokenIds','negRiskMarketID','conditionId','updatedAt','startDate']
-            useful_keys = ['id','questionID','description','liquidity','clobTokenIds','outcomes','outcomePrices','volume','startDate','endDate','question','questionID','events']
-            data1 = retain_keys(data1, useful_keys)
-            cut_1 = self.divide_list(data1, group_size)
-            cut_2 = self.divide_list(data2, group_size)
-            cut_data_12 = zip(cut_1, cut_2)
-
-            results = []
-
-            for cut_data in cut_data_12:
-                sub_data1 = cut_data[0]
-                sub_data2 = cut_data[1]
-                sub_tokens = self.estimate_tokens(str(self.prompter.prompts_polymarket(data1=sub_data1, data2=sub_data2)))
-
-                result = self.process_data_chunk(sub_data1, sub_data2, user_input)
-                results.append(result)
-
-            combined_result = " ".join(results)
-
-
-
-            return combined_result
-    def filter_events(self, events: "list[SimpleEvent]") -> str:
-        prompt = self.prompter.filter_events(events)
-        return self._invoke(prompt)
-
-    def filter_events_with_rag(self, events: "list[SimpleEvent]") -> str:
-        prompt = self.prompter.filter_events()
-        print()
-        print("... prompting ... ", prompt)
-        print()
-        return self.chroma.events(events, prompt)
-
-    def map_filtered_events_to_markets(
-        self, filtered_events: "list[SimpleEvent]"
-    ) -> "list[SimpleMarket]":
-        import logging
-        log = logging.getLogger(__name__)
+    def map_filtered_events_to_markets(self, filtered_events: list) -> list:
         markets = []
         for e in filtered_events:
             try:
@@ -153,19 +114,55 @@ class Executor:
                     if not isinstance(market_data, dict) or "id" not in market_data:
                         log.warning("Skipping market_id=%s — unexpected response: %r", market_id, str(market_data)[:120])
                         continue
-                    formatted_market_data = self.polymarket.map_api_to_market(market_data)
-                    markets.append(formatted_market_data)
+                    formatted = self.polymarket.map_api_to_market(market_data)
+                    markets.append(formatted)
                 except Exception as ex:
                     log.warning("Skipping market_id=%s — error: %s", market_id, ex)
-        log.info("map_filtered_events_to_markets: collected %d markets from %d events", len(markets), len(filtered_events))
+        log.info("map_filtered_events_to_markets: collected %d markets", len(markets))
         return markets
 
-    def filter_markets(self, markets) -> "list[tuple]":
-        prompt = self.prompter.filter_markets()
-        print()
-        print("... prompting ... ", prompt)
-        print()
-        return self.chroma.markets(markets, prompt)
+    def filter_markets(self, markets: list) -> list:
+        """Ask Claude to pick the most tradeable markets — no ChromaDB needed."""
+        if not markets:
+            return []
+
+        sample = markets[:30]
+        lines = "\n".join(
+            f"{i}: {m.get('question', 'N/A')[:100]} | prices: {m.get('outcome_prices', 'N/A')}"
+            for i, m in enumerate(sample)
+        )
+        prompt = (
+            f"You are a Polymarket prediction market analyst.\n\n"
+            f"Here are {len(sample)} active markets:\n{lines}\n\n"
+            f"Select the 4 markets most suitable for profitable trading right now.\n"
+            f"Reply with ONLY a comma-separated list of numbers, e.g.: 0,3,7,12"
+        )
+        try:
+            raw = self._invoke(prompt).strip()
+            indices = [int(x.strip()) for x in re.split(r'[,\s]+', raw) if x.strip().isdigit()]
+            indices = [i for i in indices if i < len(sample)][:4]
+            log.info("Claude selected market indices: %s", indices)
+        except Exception as e:
+            log.warning("Claude market filter failed (%s) — using first 4 markets", e)
+            indices = list(range(min(4, len(sample))))
+
+        result = []
+        for i in indices:
+            m = sample[i]
+            doc = _Document(
+                page_content=m.get("description") or m.get("question") or "",
+                metadata={
+                    "id": str(m.get("id", "")),
+                    "question": m.get("question") or "",
+                    "outcomes": m.get("outcomes") or "[]",
+                    "outcome_prices": m.get("outcome_prices") or "[]",
+                    "clob_token_ids": m.get("clob_token_ids") or "[]",
+                    "active": bool(m.get("active", True)),
+                    "closed": bool(m.get("closed", False)),
+                },
+            )
+            result.append((doc, 1.0))
+        return result
 
     @staticmethod
     def _clamp_price(price: float) -> float:
@@ -183,32 +180,21 @@ class Executor:
         description = market_document["page_content"]
 
         prompt = self.prompter.superforecaster(question, description, outcomes)
-        print()
-        print("... prompting ... ", prompt)
-        print()
+        log.info("Superforecaster prompt sent")
         content = self._invoke(prompt)
+        log.info("Superforecaster result: %s", content[:200])
 
-        print("result: ", content)
-        print()
         prompt = self.prompter.one_best_trade(content, outcomes, outcome_prices)
-        print("... prompting ... ", prompt)
-        print()
+        log.info("one_best_trade prompt sent")
         content = self._invoke(prompt)
-
-        print("result: ", content)
-        print()
+        log.info("one_best_trade result: %s", content[:200])
         return content
 
     def format_trade_prompt_for_execution(self, best_trade: str) -> tuple:
-        import logging
-        log = logging.getLogger(__name__)
-
         size_match = re.search(r'size\s*[:=]\s*(\d+\.?\d*)', best_trade, re.IGNORECASE)
         if not size_match:
             raise ValueError(f"Could not parse size from trade response: {best_trade[:200]}")
         size = float(size_match.group(1))
-        # Claude should output a decimal fraction (0.05 = 5%). Guard against Claude
-        # returning a whole percentage like 5 instead of 0.05.
         if size > 1.0:
             size = size / 100.0
 
@@ -230,7 +216,4 @@ class Executor:
 
     def source_best_market_to_create(self, filtered_markets) -> str:
         prompt = self.prompter.create_new_market(filtered_markets)
-        print()
-        print("... prompting ... ", prompt)
-        print()
         return self._invoke(prompt)
