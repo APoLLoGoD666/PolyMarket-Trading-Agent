@@ -25,6 +25,7 @@ from py_clob_client.clob_types import (
     MarketOrderArgs,
     OrderType,
     OrderBookSummary,
+    PartialCreateOrderOptions,
 )
 from py_clob_client.order_builder.constants import BUY
 
@@ -361,6 +362,19 @@ class Polymarket:
             OrderArgs(price=price, size=size, side=side, token_id=token_id)
         )
 
+    def _post_market_order(self, token_id: str, amount: float, neg_risk: bool) -> dict:
+        """Create and post a market order with an explicit neg_risk setting."""
+        options = PartialCreateOrderOptions(neg_risk=neg_risk)
+        order_args = MarketOrderArgs(token_id=token_id, amount=amount, side=BUY)
+        signed_order = self.client.create_market_order(order_args, options=options)
+        try:
+            od = signed_order.dict()
+            print(f"  Signed order (neg_risk={neg_risk}): sig_type={od.get('signatureType')}, "
+                  f"maker={od.get('maker', '')[:10]}..., tokenId={str(od.get('tokenId',''))[:20]}...")
+        except Exception:
+            pass
+        return self.client.post_order(signed_order, orderType=OrderType.GTC)
+
     def execute_market_order(self, market, amount, outcome: str = None) -> str:
         meta = market[0].dict()["metadata"]
         clob_ids = ast.literal_eval(meta["clob_token_ids"])
@@ -385,20 +399,26 @@ class Polymarket:
                 continue
             token_id = clob_ids[idx]
             label = outcomes[idx] if idx < len(outcomes) else str(idx)
-            print(f"Trying market order: outcome={label}, token_id={token_id}, amount={amount}")
-            try:
-                order_args = MarketOrderArgs(token_id=token_id, amount=amount, side=BUY)
-                signed_order = self.client.create_market_order(order_args)
-                resp = self.client.post_order(signed_order, orderType=OrderType.FOK)
-                print("Response:", resp)
-                print("Done!")
-                return resp
-            except Exception as e:
-                if "404" in str(e) or "No orderbook" in str(e):
-                    print(f"No orderbook for token {label} ({token_id}), trying next token...")
-                    last_error = e
-                    continue
-                raise
+            print(f"Trying order: outcome={label}, token_id={token_id[:20]}..., amount=${amount:.2f}")
+
+            # Try neg_risk=False first (standard exchange), then neg_risk=True (negRisk exchange)
+            # This works around cases where get_neg_risk() returns the wrong value
+            for neg_risk_flag in [False, True]:
+                try:
+                    resp = self._post_market_order(token_id, amount, neg_risk=neg_risk_flag)
+                    print(f"Order accepted (neg_risk={neg_risk_flag}):", resp)
+                    return resp
+                except Exception as e:
+                    err_str = str(e)
+                    if "order_version_mismatch" in err_str:
+                        print(f"  order_version_mismatch with neg_risk={neg_risk_flag}, trying opposite...")
+                        last_error = e
+                        continue
+                    if "404" in err_str or "No orderbook" in err_str or "no match" in err_str.lower():
+                        print(f"  No orderbook/liquidity for token {label}, skipping token.")
+                        last_error = e
+                        break  # try next token_id, not next neg_risk
+                    raise  # propagate unexpected errors
 
         raise ValueError(f"No active orderbook found for any token in this market: {last_error}")
 
