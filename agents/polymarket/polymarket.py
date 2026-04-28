@@ -233,19 +233,22 @@ class Polymarket:
             return self.map_api_to_market(market, token_id)
 
     def map_api_to_market(self, market, token_id: str = "") -> SimpleMarket:
+        raw_prices = market.get("outcomePrices")
+        raw_outcomes = market.get("outcomes")
+        raw_clob = market.get("clobTokenIds")
         market = {
             "id": int(market["id"]),
-            "question": market.get("question", ""),
-            "end": market.get("endDate", ""),
-            "description": market.get("description", ""),
+            "question": market.get("question") or "",
+            "end": market.get("endDate") or "",
+            "description": market.get("description") or "",
             "active": market.get("active", False),
             "funded": market.get("funded", False),
             "rewardsMinSize": float(market.get("rewardsMinSize") or 0),
             "rewardsMaxSpread": float(market.get("rewardsMaxSpread") or 0),
             "spread": float(market.get("spread") or 0),
-            "outcomes": str(market.get("outcomes", "[]")),
-            "outcome_prices": str(market.get("outcomePrices", "[]")),
-            "clob_token_ids": str(market.get("clobTokenIds", "[]")),
+            "outcomes": str(raw_outcomes) if raw_outcomes is not None else "[]",
+            "outcome_prices": str(raw_prices) if raw_prices is not None else "[]",
+            "clob_token_ids": str(raw_clob) if raw_clob is not None else "[]",
         }
         if token_id:
             market["clob_token_ids"] = token_id

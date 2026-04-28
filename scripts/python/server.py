@@ -7,7 +7,7 @@ import logging
 import os
 import threading
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 
@@ -18,6 +18,7 @@ from agents.application.trade import Trader
 
 load_dotenv()
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 _trader: Trader | None = None
@@ -30,28 +31,20 @@ _event_loop: asyncio.AbstractEventLoop | None = None
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-_railway_public_url = os.getenv("RAILWAY_PUBLIC_URL")
-_railway_public_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
-_railway_url = _railway_public_url or (
-    f"https://{_railway_public_domain}" if _railway_public_domain else None
-)
-WEBHOOK_PATH = "/telegram/webhook"
-WEBHOOK_URL = f"{_railway_url}{WEBHOOK_PATH}" if _railway_url else None
-
-logging.basicConfig(level=logging.INFO)
-logger.info("RAILWAY_PUBLIC_URL=%r", _railway_public_url)
-logger.info("RAILWAY_PUBLIC_DOMAIN=%r", _railway_public_domain)
-logger.info("Computed webhook URL: %r", WEBHOOK_URL)
-
 
 def _send_alert(message: str) -> None:
     """Send a message to the group chat from a sync context."""
     if _bot_app is None or _event_loop is None or not TELEGRAM_CHAT_ID:
+        logger.warning("_send_alert: bot not ready, dropping message: %s", message[:80])
         return
-    asyncio.run_coroutine_threadsafe(
+    future = asyncio.run_coroutine_threadsafe(
         _bot_app.bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message),
         _event_loop,
     )
+    try:
+        future.result(timeout=10)
+    except Exception as e:
+        logger.error("_send_alert failed: %s", e)
 
 
 def _trade_worker():
@@ -168,15 +161,7 @@ async def lifespan(app: FastAPI):
     _event_loop = asyncio.get_running_loop()
 
     if TELEGRAM_BOT_TOKEN:
-        builder = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN)
-        if not WEBHOOK_URL:
-            logger.warning(
-                "RAILWAY_PUBLIC_URL and RAILWAY_PUBLIC_DOMAIN are both unset — "
-                "falling back to polling mode"
-            )
-        else:
-            builder = builder.updater(None)
-        _bot_app = builder.build()
+        _bot_app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
         for cmd, fn in [
             ("status", cmd_status),
             ("trade", cmd_trade),
@@ -189,13 +174,8 @@ async def lifespan(app: FastAPI):
             _bot_app.add_handler(CommandHandler(cmd, fn))
         await _bot_app.initialize()
         await _bot_app.start()
-        if WEBHOOK_URL:
-            await _bot_app.bot.set_webhook(url=WEBHOOK_URL, drop_pending_updates=True)
-            logger.info("Telegram webhook registered at: %s", WEBHOOK_URL)
-            logger.info("FastAPI webhook endpoint: POST %s", WEBHOOK_PATH)
-        else:
-            await _bot_app.updater.start_polling(drop_pending_updates=True)
-            logger.info("Telegram bot started in polling mode")
+        await _bot_app.updater.start_polling(drop_pending_updates=True)
+        logger.info("Telegram bot started in polling mode")
     else:
         logger.warning("TELEGRAM_BOT_TOKEN not set — Telegram bot disabled")
 
@@ -211,10 +191,7 @@ async def lifespan(app: FastAPI):
     _scheduler.shutdown()
     logger.info("Trading scheduler stopped")
     if _bot_app:
-        if WEBHOOK_URL:
-            await _bot_app.bot.delete_webhook()
-        else:
-            await _bot_app.updater.stop()
+        await _bot_app.updater.stop()
         await _bot_app.stop()
         await _bot_app.shutdown()
         logger.info("Telegram bot stopped")
@@ -291,11 +268,3 @@ def resume_trading():
     return {"status": "resumed"}
 
 
-@app.post(WEBHOOK_PATH)
-async def telegram_webhook(request: Request):
-    if _bot_app is None:
-        return {"ok": False}
-    data = await request.json()
-    update = Update.de_json(data, _bot_app.bot)
-    await _bot_app.process_update(update)
-    return {"ok": True}

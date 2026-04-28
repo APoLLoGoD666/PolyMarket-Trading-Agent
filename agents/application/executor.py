@@ -134,14 +134,30 @@ class Executor:
     def map_filtered_events_to_markets(
         self, filtered_events: "list[SimpleEvent]"
     ) -> "list[SimpleMarket]":
+        import logging
+        log = logging.getLogger(__name__)
         markets = []
         for e in filtered_events:
-            data = json.loads(e[0].json())
-            market_ids = data["metadata"]["markets"].split(",")
+            try:
+                data = json.loads(e[0].json())
+                market_ids = data["metadata"]["markets"].split(",")
+            except Exception as ex:
+                log.warning("Skipping event — failed to parse metadata: %s", ex)
+                continue
             for market_id in market_ids:
-                market_data = self.gamma.get_market(market_id)
-                formatted_market_data = self.polymarket.map_api_to_market(market_data)
-                markets.append(formatted_market_data)
+                market_id = market_id.strip()
+                if not market_id:
+                    continue
+                try:
+                    market_data = self.gamma.get_market(market_id)
+                    if not isinstance(market_data, dict) or "id" not in market_data:
+                        log.warning("Skipping market_id=%s — unexpected response: %r", market_id, str(market_data)[:120])
+                        continue
+                    formatted_market_data = self.polymarket.map_api_to_market(market_data)
+                    markets.append(formatted_market_data)
+                except Exception as ex:
+                    log.warning("Skipping market_id=%s — error: %s", market_id, ex)
+        log.info("map_filtered_events_to_markets: collected %d markets from %d events", len(markets), len(filtered_events))
         return markets
 
     def filter_markets(self, markets) -> "list[tuple]":
