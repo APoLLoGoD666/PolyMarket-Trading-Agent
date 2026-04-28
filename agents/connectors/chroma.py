@@ -72,7 +72,7 @@ class PolymarketRAG:
 
     def events(self, events: "list[SimpleEvent]", prompt: str) -> "list[tuple]":
         # create local json file
-        local_events_directory: str = "./local_db_events"
+        local_events_directory: str = "/tmp/local_db_events"
         if not os.path.isdir(local_events_directory):
             os.mkdir(local_events_directory)
         local_file_path = f"{local_events_directory}/events.json"
@@ -107,7 +107,7 @@ class PolymarketRAG:
 
     def markets(self, markets: "list[SimpleMarket]", prompt: str) -> "list[tuple]":
         # create local json file
-        local_events_directory: str = "./local_db_markets"
+        local_events_directory: str = "/tmp/local_db_markets"
         if not os.path.isdir(local_events_directory):
             os.mkdir(local_events_directory)
         local_file_path = f"{local_events_directory}/markets.json"

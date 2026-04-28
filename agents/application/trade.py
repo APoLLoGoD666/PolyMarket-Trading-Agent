@@ -38,11 +38,11 @@ class Trader:
 
     def clear_local_dbs(self) -> None:
         try:
-            shutil.rmtree("local_db_events")
+            shutil.rmtree("/tmp/local_db_events")
         except:
             pass
         try:
-            shutil.rmtree("local_db_markets")
+            shutil.rmtree("/tmp/local_db_markets")
         except:
             pass
 
