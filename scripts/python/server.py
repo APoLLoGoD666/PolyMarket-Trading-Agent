@@ -199,6 +199,19 @@ async def lifespan(app: FastAPI):
         logger.warning("TELEGRAM_BOT_TOKEN not set — Telegram bot disabled")
 
     _trader = Trader()
+
+    try:
+        wallet_address = _trader.polymarket.client.get_address()
+    except Exception:
+        wallet_address = "unknown"
+    logger.info("Bot wallet address: %s", wallet_address)
+    _send_alert(
+        f"Bot started.\n"
+        f"Wallet: {wallet_address}\n\n"
+        f"Confirm this matches the MetaMask address connected to your Polymarket account.\n"
+        f"If not, update POLYGON_WALLET_PRIVATE_KEY in Railway."
+    )
+
     _scheduler = BackgroundScheduler()
     _scheduler.add_job(_run_trade, "interval", minutes=60, id="trading_loop")
     _scheduler.start()
