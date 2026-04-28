@@ -98,6 +98,10 @@ class Polymarket:
         )
         print(f"ClobClient: address={self.client.get_address()}, sig_type={sig_type}, funder={funder or 'self'}")
         self.credentials = self.client.create_or_derive_api_creds()
+        if self.credentials:
+            print(f"CLOB creds OK: api_key={str(self.credentials.api_key)[:12]}...")
+        else:
+            print("CLOB creds FAILED: create_or_derive_api_creds returned None")
         self.client.set_api_creds(self.credentials)
 
     def _init_approvals(self, run: bool = False) -> None:
@@ -367,15 +371,28 @@ class Polymarket:
 
     def _post_market_order(self, token_id: str, amount: float, neg_risk: bool) -> dict:
         """Create and post a market order with an explicit neg_risk setting."""
+        import json as _json
         options = PartialCreateOrderOptions(neg_risk=neg_risk)
         order_args = MarketOrderArgs(token_id=token_id, amount=amount, side=BUY)
         signed_order = self.client.create_market_order(order_args, options=options)
         try:
             od = signed_order.dict()
-            print(f"  Signed order (neg_risk={neg_risk}): sig_type={od.get('signatureType')}, "
-                  f"maker={od.get('maker', '')[:10]}..., tokenId={str(od.get('tokenId',''))[:20]}...")
-        except Exception:
-            pass
+            api_key = self.client.creds.api_key if self.client.creds else "NO_CREDS"
+            print(f"  ORDER PAYLOAD (neg_risk={neg_risk}):")
+            print(f"    maker       = {od.get('maker')}")
+            print(f"    signer      = {od.get('signer')}")
+            print(f"    signatureType = {od.get('signatureType')}")
+            print(f"    tokenId     = {od.get('tokenId')}")
+            print(f"    makerAmount = {od.get('makerAmount')}")
+            print(f"    takerAmount = {od.get('takerAmount')}")
+            print(f"    side        = {od.get('side')}")
+            print(f"    feeRateBps  = {od.get('feeRateBps')}")
+            print(f"    nonce       = {od.get('nonce')}")
+            print(f"    expiration  = {od.get('expiration')}")
+            print(f"    sig[:20]    = {str(od.get('signature',''))[:20]}")
+            print(f"    owner(api_key[:8]) = {str(api_key)[:8]}")
+        except Exception as log_err:
+            print(f"  Log error: {log_err}")
         return self.client.post_order(signed_order, orderType=OrderType.GTC)
 
     def execute_market_order(self, market, amount, outcome: str = None) -> str:
