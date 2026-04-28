@@ -24,7 +24,7 @@ class Trader:
         except:
             pass
 
-    def one_best_trade(self) -> None:
+    def one_best_trade(self) -> str | None:
         """
 
         one_best_trade is a strategy that evaluates all events, markets, and orderbooks
@@ -40,27 +40,27 @@ class Trader:
         print(f"1. FOUND {len(events)} EVENTS")
         if not events:
             print("No tradeable events available.")
-            return
+            return None
 
         filtered_events = self.agent.filter_events_with_rag(events)
         print(f"2. FILTERED {len(filtered_events)} EVENTS")
         if not filtered_events:
             print("No events passed the relevance filter.")
-            return
+            return None
 
         markets = self.agent.map_filtered_events_to_markets(filtered_events)
         print()
         print(f"3. FOUND {len(markets)} MARKETS")
         if not markets:
             print("No markets found for filtered events.")
-            return
+            return None
 
         print()
         filtered_markets = self.agent.filter_markets(markets)
         print(f"4. FILTERED {len(filtered_markets)} MARKETS")
         if not filtered_markets:
             print("No markets passed the relevance filter.")
-            return
+            return None
 
         market = filtered_markets[0]
         best_trade = self.agent.source_best_trade(market)
@@ -70,6 +70,8 @@ class Trader:
         # Please refer to TOS before uncommenting: polymarket.com/tos
         # trade = self.polymarket.execute_market_order(market, amount)
         # print(f"6. TRADED {trade}")
+
+        return best_trade
 
     def maintain_positions(self):
         pass
