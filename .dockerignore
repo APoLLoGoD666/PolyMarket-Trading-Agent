@@ -1,0 +1,16 @@
+.git
+.claude
+.env
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv
+venv
+*.egg-info
+.pytest_cache
+.mypy_cache
+local_db
+**/chroma
+**/*.db
