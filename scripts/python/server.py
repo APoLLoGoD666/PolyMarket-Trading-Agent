@@ -7,7 +7,7 @@ import logging
 import os
 import threading
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 
@@ -29,6 +29,12 @@ _event_loop: asyncio.AbstractEventLoop | None = None
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+_railway_url = os.getenv("RAILWAY_PUBLIC_URL") or (
+    f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}" if os.getenv("RAILWAY_PUBLIC_DOMAIN") else None
+)
+WEBHOOK_PATH = "/telegram/webhook"
+WEBHOOK_URL = f"{_railway_url}{WEBHOOK_PATH}" if _railway_url else None
 
 
 def _send_alert(message: str) -> None:
@@ -139,7 +145,7 @@ async def lifespan(app: FastAPI):
     _event_loop = asyncio.get_running_loop()
 
     if TELEGRAM_BOT_TOKEN:
-        _bot_app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+        _bot_app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).updater(None).build()
         for cmd, fn in [
             ("status", cmd_status),
             ("pause", cmd_pause),
@@ -151,8 +157,11 @@ async def lifespan(app: FastAPI):
             _bot_app.add_handler(CommandHandler(cmd, fn))
         await _bot_app.initialize()
         await _bot_app.start()
-        await _bot_app.updater.start_polling(drop_pending_updates=True)
-        logger.info("Telegram bot started")
+        if WEBHOOK_URL:
+            await _bot_app.bot.set_webhook(url=WEBHOOK_URL, drop_pending_updates=True)
+            logger.info(f"Telegram webhook registered: {WEBHOOK_URL}")
+        else:
+            logger.warning("No Railway public URL found — Telegram webhook not registered")
     else:
         logger.warning("TELEGRAM_BOT_TOKEN not set — Telegram bot disabled")
 
@@ -167,7 +176,7 @@ async def lifespan(app: FastAPI):
     _scheduler.shutdown()
     logger.info("Trading scheduler stopped")
     if _bot_app:
-        await _bot_app.updater.stop()
+        await _bot_app.bot.delete_webhook()
         await _bot_app.stop()
         await _bot_app.shutdown()
         logger.info("Telegram bot stopped")
@@ -242,3 +251,13 @@ def resume_trading():
     with _state_lock:
         _is_paused = False
     return {"status": "resumed"}
+
+
+@app.post(WEBHOOK_PATH)
+async def telegram_webhook(request: Request):
+    if _bot_app is None:
+        return {"ok": False}
+    data = await request.json()
+    update = Update.de_json(data, _bot_app.bot)
+    await _bot_app.process_update(update)
+    return {"ok": True}
