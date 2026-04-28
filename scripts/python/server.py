@@ -125,9 +125,20 @@ async def cmd_pnl(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(f"Error fetching P&L: {e}")
 
 
+async def cmd_trade(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    with _state_lock:
+        paused = _is_paused
+    if paused:
+        await update.message.reply_text("Trading is paused. Use /resume first.")
+        return
+    await update.message.reply_text("Triggering trade now...")
+    asyncio.create_task(asyncio.to_thread(_run_trade))
+
+
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "/status    — running state & next trade time\n"
+        "/trade     — trigger a trade immediately\n"
         "/pause     — pause trading\n"
         "/resume    — resume trading\n"
         "/positions — open positions\n"
@@ -148,6 +159,7 @@ async def lifespan(app: FastAPI):
         _bot_app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).updater(None).build()
         for cmd, fn in [
             ("status", cmd_status),
+            ("trade", cmd_trade),
             ("pause", cmd_pause),
             ("resume", cmd_resume),
             ("positions", cmd_positions),
@@ -170,6 +182,7 @@ async def lifespan(app: FastAPI):
     _scheduler.add_job(_run_trade, "interval", minutes=60, id="trading_loop")
     _scheduler.start()
     logger.info("Trading scheduler started — running every 60 minutes")
+    _run_trade()
 
     yield
 
