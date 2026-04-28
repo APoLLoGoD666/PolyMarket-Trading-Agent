@@ -151,10 +151,17 @@ class Executor:
         print()
         return self.chroma.markets(markets, prompt)
 
+    @staticmethod
+    def _clamp_price(price: float) -> float:
+        return max(0.01, min(0.99, price))
+
     def source_best_trade(self, market_object) -> str:
         market_document = market_object[0].dict()
         market = market_document["metadata"]
-        outcome_prices = ast.literal_eval(market["outcome_prices"])
+        outcome_prices = [
+            str(self._clamp_price(float(p)))
+            for p in ast.literal_eval(market["outcome_prices"])
+        ]
         outcomes = ast.literal_eval(market["outcomes"])
         question = market["question"]
         description = market_document["page_content"]

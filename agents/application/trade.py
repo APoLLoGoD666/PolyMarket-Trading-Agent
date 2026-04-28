@@ -2,7 +2,26 @@ from agents.application.executor import Executor as Agent
 from agents.polymarket.gamma import GammaMarketClient as Gamma
 from agents.polymarket.polymarket import Polymarket
 
+import ast
+import os
 import shutil
+
+import requests
+
+
+def _send_telegram(message: str) -> None:
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": message},
+            timeout=5,
+        )
+    except Exception:
+        pass
 
 
 class Trader:
@@ -63,14 +82,36 @@ class Trader:
             return None
 
         market = filtered_markets[0]
+        market_meta = market[0].dict()["metadata"]
+
+        outcome_prices = ast.literal_eval(market_meta.get("outcome_prices", "[]"))
+        if not outcome_prices:
+            print("Market has no valid orderbook (empty outcome_prices), skipping.")
+            return None
+
+        if not market_meta.get("active", True) or market_meta.get("closed", False):
+            print("Market is no longer active, skipping.")
+            return None
+
         best_trade = self.agent.source_best_trade(market)
         print(f"5. CALCULATED TRADE {best_trade}")
 
         amount = self.agent.format_trade_prompt_for_execution(best_trade)
         print(f"5b. TRADE SIZE ${amount:.2f} (capped at 10% of wallet)")
-        trade = self.polymarket.execute_market_order(market, amount)
-        print(f"6. TRADED {trade}")
 
+        if amount < 1.0:
+            print("Trade size too small, skipping")
+            return None
+
+        try:
+            trade = self.polymarket.execute_market_order(market, amount)
+        except Exception as e:
+            error_msg = f"Trade execution failed: {e}"
+            print(error_msg)
+            _send_telegram(error_msg)
+            return None
+
+        print(f"6. TRADED {trade}")
         return {"trade": best_trade, "amount_usd": amount, "tx": trade}
 
     def maintain_positions(self):
