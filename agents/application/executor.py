@@ -18,8 +18,8 @@ from agents.polymarket.polymarket import Polymarket
 log = logging.getLogger(__name__)
 
 
-class __Document:
-    """Minimal stand-in for langchain _Document — avoids the entire langchain dependency."""
+class _Document:
+    """Minimal stand-in for langchain Document — avoids the entire langchain dependency."""
     def __init__(self, page_content: str, metadata: dict):
         self.page_content = page_content
         self.metadata = metadata
