@@ -89,6 +89,7 @@ numpy==1.26.4
 oauthlib==3.2.2
 onnxruntime==1.18.1
 anthropic
+apscheduler==3.10.4
 opentelemetry-api==1.41.1
 opentelemetry-exporter-otlp-proto-common==1.41.1
 opentelemetry-exporter-otlp-proto-grpc==1.41.1
