@@ -151,7 +151,7 @@ async def lifespan(app: FastAPI):
             _bot_app.add_handler(CommandHandler(cmd, fn))
         await _bot_app.initialize()
         await _bot_app.start()
-        await _bot_app.updater.start_polling()
+        await _bot_app.updater.start_polling(drop_pending_updates=True)
         logger.info("Telegram bot started")
     else:
         logger.warning("TELEGRAM_BOT_TOKEN not set — Telegram bot disabled")
