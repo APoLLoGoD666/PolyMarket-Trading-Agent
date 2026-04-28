@@ -1,13 +1,29 @@
 import json
 import os
 import time
+from typing import List
 
-from langchain_openai import OpenAIEmbeddings
+from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+from langchain_core.embeddings import Embeddings
 from langchain_community.document_loaders import JSONLoader
 from langchain_community.vectorstores.chroma import Chroma
 
 from agents.polymarket.gamma import GammaMarketClient
 from agents.utils.objects import SimpleEvent, SimpleMarket
+
+
+class ChromaEmbeddings(Embeddings):
+    """LangChain-compatible wrapper around ChromaDB's built-in embedding function.
+    Uses all-MiniLM-L6-v2 via onnxruntime — no API key required."""
+
+    def __init__(self):
+        self._fn = DefaultEmbeddingFunction()
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        return list(self._fn(texts))
+
+    def embed_query(self, text: str) -> List[float]:
+        return list(self._fn([text])[0])
 
 
 class PolymarketRAG:
@@ -24,7 +40,7 @@ class PolymarketRAG:
         )
         loaded_docs = loader.load()
 
-        embedding_function = OpenAIEmbeddings(model="text-embedding-3-small")
+        embedding_function = ChromaEmbeddings()
         Chroma.from_documents(
             loaded_docs, embedding_function, persist_directory=vector_db_directory
         )
@@ -47,7 +63,7 @@ class PolymarketRAG:
     def query_local_markets_rag(
         self, local_directory=None, query=None
     ) -> "list[tuple]":
-        embedding_function = OpenAIEmbeddings(model="text-embedding-3-small")
+        embedding_function = ChromaEmbeddings()
         local_db = Chroma(
             persist_directory=local_directory, embedding_function=embedding_function
         )
@@ -80,7 +96,7 @@ class PolymarketRAG:
             metadata_func=metadata_func,
         )
         loaded_docs = loader.load()
-        embedding_function = OpenAIEmbeddings(model="text-embedding-3-small")
+        embedding_function = ChromaEmbeddings()
         vector_db_directory = f"{local_events_directory}/chroma"
         local_db = Chroma.from_documents(
             loaded_docs, embedding_function, persist_directory=vector_db_directory
@@ -117,7 +133,7 @@ class PolymarketRAG:
             metadata_func=metadata_func,
         )
         loaded_docs = loader.load()
-        embedding_function = OpenAIEmbeddings(model="text-embedding-3-small")
+        embedding_function = ChromaEmbeddings()
         vector_db_directory = f"{local_events_directory}/chroma"
         local_db = Chroma.from_documents(
             loaded_docs, embedding_function, persist_directory=vector_db_directory

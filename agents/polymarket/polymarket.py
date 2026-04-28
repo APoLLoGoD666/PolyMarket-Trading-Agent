@@ -217,19 +217,17 @@ class Polymarket:
     def map_api_to_market(self, market, token_id: str = "") -> SimpleMarket:
         market = {
             "id": int(market["id"]),
-            "question": market["question"],
-            "end": market["endDate"],
-            "description": market["description"],
-            "active": market["active"],
-            # "deployed": market["deployed"],
-            "funded": market["funded"],
-            "rewardsMinSize": float(market["rewardsMinSize"]),
-            "rewardsMaxSpread": float(market["rewardsMaxSpread"]),
-            # "volume": float(market["volume"]),
-            "spread": float(market["spread"]),
-            "outcomes": str(market["outcomes"]),
-            "outcome_prices": str(market["outcomePrices"]),
-            "clob_token_ids": str(market["clobTokenIds"]),
+            "question": market.get("question", ""),
+            "end": market.get("endDate", ""),
+            "description": market.get("description", ""),
+            "active": market.get("active", False),
+            "funded": market.get("funded", False),
+            "rewardsMinSize": float(market.get("rewardsMinSize") or 0),
+            "rewardsMaxSpread": float(market.get("rewardsMaxSpread") or 0),
+            "spread": float(market.get("spread") or 0),
+            "outcomes": str(market.get("outcomes", "[]")),
+            "outcome_prices": str(market.get("outcomePrices", "[]")),
+            "clob_token_ids": str(market.get("clobTokenIds", "[]")),
         }
         if token_id:
             market["clob_token_ids"] = token_id
@@ -237,12 +235,16 @@ class Polymarket:
 
     def get_all_events(self) -> "list[SimpleEvent]":
         events = []
-        res = httpx.get(self.gamma_events_endpoint)
+        params = {
+            "active": True,
+            "closed": False,
+            "archived": False,
+            "limit": 100,
+        }
+        res = httpx.get(self.gamma_events_endpoint, params=params)
         if res.status_code == 200:
-            print(len(res.json()))
             for event in res.json():
                 try:
-                    print(1)
                     event_data = self.map_api_to_event(event)
                     events.append(SimpleEvent(**event_data))
                 except Exception as e:
@@ -275,7 +277,6 @@ class Polymarket:
         for event in events:
             if (
                 event.active
-                and not event.restricted
                 and not event.archived
                 and not event.closed
             ):
