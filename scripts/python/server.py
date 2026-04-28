@@ -51,7 +51,12 @@ def _run_trade():
         _send_alert("Trade cycle starting...")
         result = _trader.one_best_trade()
         if result:
-            _send_alert(f"Trade calculated (execution disabled — see TOS):\n{result}")
+            _send_alert(
+                f"Trade executed:\n"
+                f"{result['trade']}\n\n"
+                f"Trade size: ${result['amount_usd']:.2f}\n"
+                f"Transaction: {result['tx']}"
+            )
         else:
             _send_alert("Trade cycle complete — no trade found.")
     except Exception as e:

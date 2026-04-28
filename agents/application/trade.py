@@ -24,7 +24,7 @@ class Trader:
         except:
             pass
 
-    def one_best_trade(self) -> str | None:
+    def one_best_trade(self) -> dict | None:
         """
 
         one_best_trade is a strategy that evaluates all events, markets, and orderbooks
@@ -67,11 +67,11 @@ class Trader:
         print(f"5. CALCULATED TRADE {best_trade}")
 
         amount = self.agent.format_trade_prompt_for_execution(best_trade)
-        # Please refer to TOS before uncommenting: polymarket.com/tos
-        # trade = self.polymarket.execute_market_order(market, amount)
-        # print(f"6. TRADED {trade}")
+        print(f"5b. TRADE SIZE ${amount:.2f} (capped at 10% of wallet)")
+        trade = self.polymarket.execute_market_order(market, amount)
+        print(f"6. TRADED {trade}")
 
-        return best_trade
+        return {"trade": best_trade, "amount_usd": amount, "tx": trade}
 
     def maintain_positions(self):
         pass

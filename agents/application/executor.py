@@ -182,7 +182,12 @@ class Executor:
             raise ValueError(f"Could not parse size from trade response: {best_trade[:200]}")
         size = float(size_match.group(1))
         usdc_balance = self.polymarket.get_usdc_balance()
-        return size * usdc_balance
+        amount = size * usdc_balance
+        max_amount = 0.10 * usdc_balance  # never bet more than 10% of wallet on a single trade
+        if amount > max_amount:
+            print(f"Trade size ${amount:.2f} exceeds 10% cap (${max_amount:.2f}), clamping.")
+            amount = max_amount
+        return amount
 
     def source_best_market_to_create(self, filtered_markets) -> str:
         prompt = self.prompter.create_new_market(filtered_markets)
