@@ -94,7 +94,7 @@ This repo is inteded for use with Python 3.9
 
    ```
    POLYGON_WALLET_PRIVATE_KEY=""
-   OPENAI_API_KEY=""
+   ANTHROPIC_API_KEY=""
    ```
 
 6. Load your wallet with USDC.
