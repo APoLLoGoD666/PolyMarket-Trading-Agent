@@ -61,25 +61,33 @@ class Trader:
         events = self.polymarket.get_all_tradeable_events()
         logger.info("1. FOUND %d EVENTS", len(events))
         if not events:
-            logger.warning("STEP 1 FAILED: No tradeable events returned from API.")
+            msg = "STEP 1 FAILED: No tradeable events returned from Gamma API."
+            logger.warning(msg)
+            _send_telegram(msg)
             return None
 
         filtered_events = self.agent.filter_events_with_rag(events)
-        logger.info("2. FILTERED %d EVENTS", len(filtered_events))
+        logger.info("2. FILTERED TO %d EVENTS (from %d)", len(filtered_events), len(events))
         if not filtered_events:
-            logger.warning("STEP 2 FAILED: RAG filter removed all %d events.", len(events))
+            msg = f"STEP 2 FAILED: RAG filter returned 0 results from {len(events)} events."
+            logger.warning(msg)
+            _send_telegram(msg)
             return None
 
         markets = self.agent.map_filtered_events_to_markets(filtered_events)
         logger.info("3. FOUND %d MARKETS", len(markets))
         if not markets:
-            logger.warning("STEP 3 FAILED: No markets mapped from %d filtered events.", len(filtered_events))
+            msg = f"STEP 3 FAILED: No markets mapped from {len(filtered_events)} filtered events."
+            logger.warning(msg)
+            _send_telegram(msg)
             return None
 
         filtered_markets = self.agent.filter_markets(markets)
-        logger.info("4. FILTERED %d MARKETS", len(filtered_markets))
+        logger.info("4. FILTERED TO %d MARKETS (from %d)", len(filtered_markets), len(markets))
         if not filtered_markets:
-            logger.warning("STEP 4 FAILED: Market filter removed all %d markets.", len(markets))
+            msg = f"STEP 4 FAILED: Market RAG filter returned 0 results from {len(markets)} markets."
+            logger.warning(msg)
+            _send_telegram(msg)
             return None
 
         # Pick the first market that has valid outcome prices AND CLOB token IDs
@@ -107,14 +115,16 @@ class Trader:
                 break
 
         if market is None:
-            logger.warning(
-                "STEP 4b FAILED: None of the %d filtered markets had valid outcome_prices.",
-                len(filtered_markets)
-            )
+            questions = [c[0].dict()["metadata"].get("question", "?")[:60] for c in filtered_markets]
+            msg = f"STEP 4b FAILED: None of {len(filtered_markets)} markets had valid prices+CLOB IDs.\nCandidates: {questions}"
+            logger.warning(msg)
+            _send_telegram(msg)
             return None
 
         if not market_meta.get("active", True) or market_meta.get("closed", False):
-            logger.warning("STEP 4c FAILED: Best market is no longer active.")
+            msg = "STEP 4c FAILED: Best market is no longer active/open."
+            logger.warning(msg)
+            _send_telegram(msg)
             return None
 
         best_trade = self.agent.source_best_trade(market)
@@ -124,7 +134,9 @@ class Trader:
         logger.info("5b. TRADE SIZE $%.2f (capped at 10%% of wallet), OUTCOME: %s", amount, outcome)
 
         if amount < 1.0:
-            logger.warning("STEP 5b FAILED: Trade size $%.2f too small, skipping.", amount)
+            msg = f"STEP 5b FAILED: Trade size ${amount:.2f} below $1 minimum. Check USDC balance."
+            logger.warning(msg)
+            _send_telegram(msg)
             return None
 
         try:

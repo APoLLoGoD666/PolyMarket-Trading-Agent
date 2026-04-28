@@ -274,21 +274,20 @@ class Polymarket:
         return events
 
     def map_api_to_event(self, event) -> SimpleEvent:
-        description = event["description"] if "description" in event.keys() else ""
         return {
             "id": int(event["id"]),
-            "ticker": event["ticker"],
-            "slug": event["slug"],
-            "title": event["title"],
-            "description": description,
-            "active": event["active"],
-            "closed": event["closed"],
-            "archived": event["archived"],
-            "new": event["new"],
-            "featured": event["featured"],
-            "restricted": event["restricted"],
-            "end": event["endDate"],
-            "markets": ",".join([str(x["id"]) for x in event["markets"]]),
+            "ticker": event.get("ticker") or "",
+            "slug": event.get("slug") or "",
+            "title": event.get("title") or "",
+            "description": event.get("description") or "",
+            "active": event.get("active", True),
+            "closed": event.get("closed", False),
+            "archived": event.get("archived", False),
+            "new": event.get("new", False),
+            "featured": event.get("featured", False),
+            "restricted": event.get("restricted", False),
+            "end": event.get("endDate") or "",
+            "markets": ",".join([str(x["id"]) for x in (event.get("markets") or [])]),
         }
 
     def filter_events_for_trading(
