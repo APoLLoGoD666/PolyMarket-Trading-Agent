@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from typing import Union
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 import asyncio
 import json
 import logging
@@ -75,6 +76,20 @@ def _run_trade():
     threading.Thread(target=_trade_worker, daemon=True, name="trade-worker").start()
 
 
+_LONDON = ZoneInfo("Europe/London")
+
+
+def _fmt_time(dt) -> str:
+    """Return a datetime as 'HH:MM:SS UTC / HH:MM:SS BST' (or GMT in winter)."""
+    if dt is None:
+        return "N/A"
+    utc_str = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+    london_dt = dt.astimezone(_LONDON)
+    tz_abbr = london_dt.strftime("%Z")  # BST or GMT
+    london_str = london_dt.strftime("%Y-%m-%d %H:%M:%S ") + tz_abbr
+    return f"{utc_str} / {london_str}"
+
+
 def _fmt(data) -> str:
     """Format API data for Telegram (truncated to 4000 chars)."""
     text = json.dumps(data, indent=2, default=str) if not isinstance(data, str) else data
@@ -87,10 +102,14 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     job = _scheduler.get_job("trading_loop") if _scheduler else None
     with _state_lock:
         paused = _is_paused
+    next_run = _fmt_time(job.next_run_time if job else None)
+    now_utc = datetime.now(ZoneInfo("UTC"))
+    now_str = _fmt_time(now_utc)
     await update.message.reply_text(
         f"Running: {_scheduler is not None and _scheduler.running}\n"
         f"Paused: {paused}\n"
-        f"Next run: {job.next_run_time if job else 'N/A'}"
+        f"Now:      {now_str}\n"
+        f"Next run: {next_run}"
     )
 
 
@@ -225,10 +244,12 @@ def read_market(market_id: int, q: Union[str, None] = None):
 @app.get("/status")
 def get_status():
     job = _scheduler.get_job("trading_loop") if _scheduler else None
+    next_run_dt = job.next_run_time if job else None
     return {
         "running": _scheduler is not None and _scheduler.running,
         "paused": _is_paused,
-        "next_run": str(job.next_run_time) if job else None,
+        "next_run_utc": next_run_dt.strftime("%Y-%m-%d %H:%M:%S UTC") if next_run_dt else None,
+        "next_run_london": _fmt_time(next_run_dt),
     }
 
 
