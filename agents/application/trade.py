@@ -143,7 +143,16 @@ class Trader:
         try:
             trade = self.polymarket.execute_market_order(market, amount, outcome)
         except Exception as e:
-            error_msg = f"Trade execution failed: {e}"
+            err_str = str(e)
+            if "order_version_mismatch" in err_str:
+                error_msg = (
+                    "Trade execution failed: order_version_mismatch\n"
+                    "Your wallet is not onboarded with Polymarket.\n"
+                    "Fix: visit polymarket.com, connect your wallet, and complete signup.\n"
+                    "Then set POLY_SIGNATURE_TYPE=1 and POLY_FUNDER=<proxy wallet address> in Railway."
+                )
+            else:
+                error_msg = f"Trade execution failed: {e}"
             logger.error(error_msg)
             _send_telegram(error_msg)
             return None

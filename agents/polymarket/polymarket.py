@@ -90,7 +90,7 @@ class Polymarket:
         )
 
     def _init_api_keys(self) -> None:
-        sig_type = int(os.getenv("POLY_SIGNATURE_TYPE", "1"))
+        sig_type = int(os.getenv("POLY_SIGNATURE_TYPE", "0"))
         funder = os.getenv("POLY_FUNDER") or None
         self.client = ClobClient(
             self.clob_url, key=self.private_key, chain_id=self.chain_id,
