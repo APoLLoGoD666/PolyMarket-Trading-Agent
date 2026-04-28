@@ -387,7 +387,7 @@ class Polymarket:
             label = outcomes[idx] if idx < len(outcomes) else str(idx)
             print(f"Trying market order: outcome={label}, token_id={token_id}, amount={amount}")
             try:
-                order_args = MarketOrderArgs(token_id=token_id, amount=amount)
+                order_args = MarketOrderArgs(token_id=token_id, amount=amount, side=BUY)
                 signed_order = self.client.create_market_order(order_args)
                 resp = self.client.post_order(signed_order, orderType=OrderType.FOK)
                 print("Response:", resp)
