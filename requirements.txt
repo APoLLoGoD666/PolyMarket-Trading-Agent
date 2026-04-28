@@ -17,7 +17,7 @@ cfgv==3.4.0
 charset-normalizer==3.3.2
 chroma-hnswlib==0.7.6
 chromadb==1.5.8
-ckzg==1.0.2
+ckzg==2.1.7
 click==8.3.3
 coloredlogs==15.0.1
 cytoolz==0.12.3
@@ -28,13 +28,13 @@ distlib==0.3.8
 distro==1.9.0
 dnspython==2.6.1
 email_validator==2.2.0
-eth-account==0.13.1
+eth-account==0.13.7
 eth-hash==0.7.0
 eth-keyfile==0.8.1
 eth-keys==0.5.1
 eth-rlp==2.1.0
-eth-typing==4.4.0
-eth-utils==4.1.1
+eth-typing==6.0.0
+eth-utils==6.0.0
 eth_abi==5.1.0
 exceptiongroup==1.2.2
 executing==2.0.1
@@ -157,7 +157,7 @@ urllib3==2.6.3
 uvicorn==0.30.3
 virtualenv==20.36.1
 watchfiles==0.22.0
-web3==6.11.0
+web3==7.15.0
 websocket-client==1.8.0
 websockets==12.0
 wrapt==1.16.0
