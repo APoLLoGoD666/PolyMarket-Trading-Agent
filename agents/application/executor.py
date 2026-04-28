@@ -217,11 +217,15 @@ class Executor:
         log.info("Parsed trade — size fraction: %.4f, outcome: %s", size, outcome)
 
         usdc_balance = self.polymarket.get_usdc_balance()
+        log.info("USDC balance: $%.2f", usdc_balance)
         amount = size * usdc_balance
         max_amount = 0.10 * usdc_balance
         if amount > max_amount:
             log.info("Trade size $%.2f exceeds 10%% cap ($%.2f), clamping.", amount, max_amount)
             amount = max_amount
+        if amount < 1.0 and usdc_balance >= 2.0:
+            log.info("Trade size $%.2f below $1 minimum — bumping to $1.00", amount)
+            amount = 1.0
         return amount, outcome
 
     def source_best_market_to_create(self, filtered_markets) -> str:
