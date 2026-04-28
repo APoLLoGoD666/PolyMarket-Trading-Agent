@@ -90,12 +90,15 @@ class Polymarket:
         )
 
     def _init_api_keys(self) -> None:
+        sig_type = int(os.getenv("POLY_SIGNATURE_TYPE", "1"))
+        funder = os.getenv("POLY_FUNDER") or None
         self.client = ClobClient(
-            self.clob_url, key=self.private_key, chain_id=self.chain_id
+            self.clob_url, key=self.private_key, chain_id=self.chain_id,
+            signature_type=sig_type, funder=funder,
         )
+        print(f"ClobClient: address={self.client.get_address()}, sig_type={sig_type}, funder={funder or 'self'}")
         self.credentials = self.client.create_or_derive_api_creds()
         self.client.set_api_creds(self.credentials)
-        # print(self.credentials)
 
     def _init_approvals(self, run: bool = False) -> None:
         if not run:
