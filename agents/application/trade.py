@@ -3,10 +3,13 @@ from agents.polymarket.gamma import GammaMarketClient as Gamma
 from agents.polymarket.polymarket import Polymarket
 
 import ast
+import logging
 import os
 import shutil
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 
 def _send_telegram(message: str) -> None:
@@ -56,62 +59,78 @@ class Trader:
         self.pre_trade_logic()
 
         events = self.polymarket.get_all_tradeable_events()
-        print(f"1. FOUND {len(events)} EVENTS")
+        logger.info("1. FOUND %d EVENTS", len(events))
         if not events:
-            print("No tradeable events available.")
+            logger.warning("STEP 1 FAILED: No tradeable events returned from API.")
             return None
 
         filtered_events = self.agent.filter_events_with_rag(events)
-        print(f"2. FILTERED {len(filtered_events)} EVENTS")
+        logger.info("2. FILTERED %d EVENTS", len(filtered_events))
         if not filtered_events:
-            print("No events passed the relevance filter.")
+            logger.warning("STEP 2 FAILED: RAG filter removed all %d events.", len(events))
             return None
 
         markets = self.agent.map_filtered_events_to_markets(filtered_events)
-        print()
-        print(f"3. FOUND {len(markets)} MARKETS")
+        logger.info("3. FOUND %d MARKETS", len(markets))
         if not markets:
-            print("No markets found for filtered events.")
+            logger.warning("STEP 3 FAILED: No markets mapped from %d filtered events.", len(filtered_events))
             return None
 
-        print()
         filtered_markets = self.agent.filter_markets(markets)
-        print(f"4. FILTERED {len(filtered_markets)} MARKETS")
+        logger.info("4. FILTERED %d MARKETS", len(filtered_markets))
         if not filtered_markets:
-            print("No markets passed the relevance filter.")
+            logger.warning("STEP 4 FAILED: Market filter removed all %d markets.", len(markets))
             return None
 
-        market = filtered_markets[0]
-        market_meta = market[0].dict()["metadata"]
+        # Pick the first market that has at least one valid outcome price
+        market = None
+        market_meta = None
+        for i, candidate in enumerate(filtered_markets):
+            meta = candidate[0].dict()["metadata"]
+            raw = meta.get("outcome_prices") or "[]"
+            try:
+                prices = ast.literal_eval(raw)
+            except Exception:
+                prices = []
+            logger.info(
+                "4b. Candidate %d: %r → outcome_prices=%r",
+                i, meta.get("question", "")[:80], prices
+            )
+            if prices:
+                market = candidate
+                market_meta = meta
+                break
 
-        outcome_prices = ast.literal_eval(market_meta.get("outcome_prices", "[]"))
-        if not outcome_prices:
-            print("Market has no valid orderbook (empty outcome_prices), skipping.")
+        if market is None:
+            logger.warning(
+                "STEP 4b FAILED: None of the %d filtered markets had valid outcome_prices.",
+                len(filtered_markets)
+            )
             return None
 
         if not market_meta.get("active", True) or market_meta.get("closed", False):
-            print("Market is no longer active, skipping.")
+            logger.warning("STEP 4c FAILED: Best market is no longer active.")
             return None
 
         best_trade = self.agent.source_best_trade(market)
-        print(f"5. CALCULATED TRADE {best_trade}")
+        logger.info("5. CALCULATED TRADE %s", best_trade)
 
         amount = self.agent.format_trade_prompt_for_execution(best_trade)
-        print(f"5b. TRADE SIZE ${amount:.2f} (capped at 10% of wallet)")
+        logger.info("5b. TRADE SIZE $%.2f (capped at 10%% of wallet)", amount)
 
         if amount < 1.0:
-            print("Trade size too small, skipping")
+            logger.warning("STEP 5b FAILED: Trade size $%.2f too small, skipping.", amount)
             return None
 
         try:
             trade = self.polymarket.execute_market_order(market, amount)
         except Exception as e:
             error_msg = f"Trade execution failed: {e}"
-            print(error_msg)
+            logger.error(error_msg)
             _send_telegram(error_msg)
             return None
 
-        print(f"6. TRADED {trade}")
+        logger.info("6. TRADED %s", trade)
         return {"trade": best_trade, "amount_usd": amount, "tx": trade}
 
     def maintain_positions(self):

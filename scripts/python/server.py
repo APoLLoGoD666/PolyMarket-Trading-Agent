@@ -54,12 +54,8 @@ def _send_alert(message: str) -> None:
     )
 
 
-def _run_trade():
-    with _state_lock:
-        paused = _is_paused
-    if paused:
-        logger.info("Trading loop paused, skipping scheduled run")
-        return
+def _trade_worker():
+    """Runs the full trading pipeline in its own thread so the event loop stays free."""
     try:
         _send_alert("Trade cycle starting...")
         result = _trader.one_best_trade()
@@ -75,6 +71,15 @@ def _run_trade():
     except Exception as e:
         logger.error(f"Trading loop error: {e}")
         _send_alert(f"ERROR in trading loop: {e}")
+
+
+def _run_trade():
+    with _state_lock:
+        paused = _is_paused
+    if paused:
+        logger.info("Trading loop paused, skipping scheduled run")
+        return
+    threading.Thread(target=_trade_worker, daemon=True, name="trade-worker").start()
 
 
 def _fmt(data) -> str:
@@ -199,7 +204,7 @@ async def lifespan(app: FastAPI):
     _scheduler.add_job(_run_trade, "interval", minutes=60, id="trading_loop")
     _scheduler.start()
     logger.info("Trading scheduler started — running every 60 minutes")
-    _run_trade()
+    threading.Thread(target=_trade_worker, daemon=True, name="trade-worker-startup").start()
 
     yield
 
