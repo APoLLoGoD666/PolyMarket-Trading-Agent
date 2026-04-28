@@ -250,6 +250,7 @@ class Polymarket:
             "outcomes": str(raw_outcomes) if raw_outcomes is not None else "[]",
             "outcome_prices": str(raw_prices) if raw_prices is not None else "[]",
             "clob_token_ids": str(raw_clob) if raw_clob is not None else "[]",
+            "neg_risk": bool(market.get("negRisk", False)),
         }
         if token_id:
             market["clob_token_ids"] = token_id

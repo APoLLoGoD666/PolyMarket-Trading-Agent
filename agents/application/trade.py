@@ -105,11 +105,12 @@ class Trader:
                 clob_ids = ast.literal_eval(raw_clob)
             except Exception:
                 clob_ids = []
+            neg_risk = meta.get("neg_risk", False)
             logger.info(
-                "4b. Candidate %d: %r → prices=%r, clob_ids=%r",
-                i, meta.get("question", "")[:80], prices, clob_ids
+                "4b. Candidate %d: %r → prices=%r, clob_ids=%r, neg_risk=%s",
+                i, meta.get("question", "")[:80], prices, clob_ids, neg_risk
             )
-            if prices and clob_ids:
+            if prices and clob_ids and not neg_risk:
                 market = candidate
                 market_meta = meta
                 break

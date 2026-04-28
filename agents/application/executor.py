@@ -159,6 +159,7 @@ class Executor:
                     "clob_token_ids": m.get("clob_token_ids") or "[]",
                     "active": bool(m.get("active", True)),
                     "closed": bool(m.get("closed", False)),
+                    "neg_risk": bool(m.get("neg_risk", False)),
                 },
             )
             result.append((doc, 1.0))
