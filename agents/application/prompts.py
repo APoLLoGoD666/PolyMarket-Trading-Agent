@@ -140,7 +140,7 @@ class Prompter:
 
         Give your response in the following format:
 
-        I believe {question} has a likelihood `{float}` for outcome of `{str}`.
+        I believe {question} has a likelihood `0.XX` for outcome of `{outcome}`.
         """
 
     def one_best_trade(
@@ -152,40 +152,20 @@ class Prompter:
         return (
             self.polymarket_analyst_api()
             + f"""
-        
-                Imagine yourself as the top trader on Polymarket, dominating the world of information markets with your keen insights and strategic acumen. You have an extraordinary ability to analyze and interpret data from diverse sources, turning complex information into profitable trading opportunities.
-                You excel in predicting the outcomes of global events, from political elections to economic developments, using a combination of data analysis and intuition. Your deep understanding of probability and statistics allows you to assess market sentiment and make informed decisions quickly.
-                Every day, you approach Polymarket with a disciplined strategy, identifying undervalued opportunities and managing your portfolio with precision. You are adept at evaluating the credibility of information and filtering out noise, ensuring that your trades are based on reliable data.
-                Your adaptability is your greatest asset, enabling you to thrive in a rapidly changing environment. You leverage cutting-edge technology and tools to gain an edge over other traders, constantly seeking innovative ways to enhance your strategies.
-                In your journey on Polymarket, you are committed to continuous learning, staying informed about the latest trends and developments in various sectors. Your emotional intelligence empowers you to remain composed under pressure, making rational decisions even when the stakes are high.
-                Visualize yourself consistently achieving outstanding returns, earning recognition as the top trader on Polymarket. You inspire others with your success, setting new standards of excellence in the world of information markets.
 
-        """
-            + f"""
-        
         You made the following prediction for a market: {prediction}
 
-        The current outcomes ${outcomes} prices are: ${outcome_prices}
+        The available outcomes are: {outcomes}
+        Their current prices are: {outcome_prices}
 
-        Given your prediction, respond with a genius trade in the format:
-        `
-            outcome:'the outcome you are buying e.g. Yes or No',
-            price:'price_on_the_orderbook',
-            size:'percentage_of_total_funds as a decimal e.g. 0.05 for 5%',
-            side: BUY,
-        `
+        Output ONLY the following four lines. No analysis, no headers, no extra text:
 
-        Your trade should approximate price using the likelihood in your prediction.
+        outcome:Yes,
+        price:0.5,
+        size:0.05,
+        side:BUY,
 
-        Example response:
-
-        RESPONSE```
-            outcome:Yes,
-            price:0.5,
-            size:0.05,
-            side:BUY,
-        ```
-        
+        Replace the values with your actual trade decision. Set price to match the predicted likelihood.
         """
         )
 
