@@ -174,6 +174,8 @@ class Trader:
         try:
             trade = self.polymarket.execute_market_order(market, amount, outcome)
         except Exception as e:
+            logger.error("Full exception details: %s", repr(e))
+            logger.error("Exception type: %s", type(e).__name__)
             err_str = str(e)
             if "order_version_mismatch" in err_str:
                 error_msg = (
@@ -185,6 +187,7 @@ class Trader:
             else:
                 error_msg = f"Trade execution failed: {e}"
             logger.error(error_msg)
+            _send_telegram(f"Full exception: {repr(e)}")
             _send_telegram(error_msg)
             return None
 
