@@ -78,6 +78,9 @@ class Executor:
             f"Prefer markets that are currently active and resolving soon (within days or weeks). "
             f"Avoid future sports tournaments, championships, or events more than 2 months away "
             f"as these typically lack active orderbooks.\n"
+            f"Do NOT select any markets about criminal sentencing, court cases, legal proceedings, "
+            f"or events more than 3 months away. These markets have no active orderbooks. "
+            f"ONLY select markets about near-term political, economic, or sports events resolving within weeks.\n"
             f"Reply with ONLY a comma-separated list of numbers, e.g.: 2,7,15,33"
         )
         try:
@@ -164,6 +167,9 @@ class Executor:
             f"Select the 4 markets most suitable for profitable trading right now.\n"
             f"Only select markets where outcome_prices shows two values that sum close to 1.0 "
             f"and are not both 0. Reject any market with empty or missing prices.\n"
+            f"Do NOT select any markets about criminal sentencing, court cases, legal proceedings, "
+            f"or events more than 3 months away. These markets have no active orderbooks. "
+            f"ONLY select markets about near-term political, economic, or sports events resolving within weeks.\n"
             f"Reply with ONLY a comma-separated list of numbers, e.g.: 0,3,7,12"
         )
         try:
