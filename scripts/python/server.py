@@ -54,12 +54,15 @@ def _trade_worker():
         _send_alert("Trade cycle starting...")
         result = _trader.one_best_trade()
         if result:
-            _send_alert(
-                f"Trade executed:\n"
-                f"{result['trade']}\n\n"
-                f"Trade size: ${result['amount_usd']:.2f}\n"
-                f"Transaction: {result['tx']}"
-            )
+            is_paper = result.get("tx") == "PAPER"
+            if not is_paper:
+                _send_alert(
+                    f"Trade executed:\n"
+                    f"{result['trade']}\n\n"
+                    f"Trade size: ${result['amount_usd']:.2f}\n"
+                    f"Transaction: {result['tx']}"
+                )
+            # Paper trade notification is already sent inside one_best_trade.
         else:
             _send_alert("Trade cycle complete — no trade found.")
     except Exception as e:
@@ -203,16 +206,76 @@ async def cmd_diagnose(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text("Diagnostics complete.")
 
 
+async def cmd_paper_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if _trader is None:
+        await update.message.reply_text("Trader not initialised.")
+        return
+    mode = "ON" if _trader.paper_mode else "OFF"
+    try:
+        summary = await asyncio.to_thread(_trader.paper_trader.get_performance_summary)
+        await update.message.reply_text(
+            f"Paper trading: {mode}\n\n"
+            f"Trades: {summary['total_trades']} total "
+            f"({summary['pending']} pending, {summary['resolved']} resolved)\n"
+            f"Won / Lost: {summary['won']} / {summary['lost']}\n"
+            f"Notional deployed: ${summary['total_notional_usd']:.2f}\n"
+            f"Realised P&L:   ${summary['realised_pnl_usd']:+.2f}\n"
+            f"Unrealised P&L: ${summary['unrealised_pnl_usd']:+.2f}\n"
+            f"Total P&L:      ${summary['total_pnl_usd']:+.2f}"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"Error fetching paper summary: {e}")
+
+
+async def cmd_paper_trades(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if _trader is None:
+        await update.message.reply_text("Trader not initialised.")
+        return
+    try:
+        trades = await asyncio.to_thread(_trader.paper_trader.get_recent_trades, 10)
+        if not trades:
+            await update.message.reply_text("No paper trades recorded yet.")
+            return
+        lines = []
+        for t in reversed(trades):
+            status = "pending"
+            if t.get("resolved"):
+                status = "WON" if t.get("won") else "LOST"
+            lines.append(
+                f"• {t.get('question', '?')[:60]}\n"
+                f"  Outcome: {t.get('outcome')}  |  ${t.get('amount_usd', 0):.2f}  |  {status}\n"
+                f"  Entry: {t.get('predicted_price')}  |  {t.get('timestamp', '')[:10]}"
+            )
+        await update.message.reply_text("Last paper trades (newest first):\n\n" + "\n\n".join(lines))
+    except Exception as e:
+        await update.message.reply_text(f"Error fetching paper trades: {e}")
+
+
+async def cmd_paper_resolve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if _trader is None:
+        await update.message.reply_text("Trader not initialised.")
+        return
+    await update.message.reply_text("Checking Gamma API for resolved markets...")
+    try:
+        count = await asyncio.to_thread(_trader.paper_trader.check_and_resolve_trades)
+        await update.message.reply_text(f"Done. {count} trade(s) newly resolved.")
+    except Exception as e:
+        await update.message.reply_text(f"Error resolving trades: {e}")
+
+
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "/status    — running state & next trade time\n"
-        "/trade     — trigger a trade immediately\n"
-        "/pause     — pause trading\n"
-        "/resume    — resume trading\n"
-        "/positions — open positions\n"
-        "/pnl       — today's P&L\n"
-        "/diagnose  — sanity check (wallet, balance, CLOB creds, events)\n"
-        "/help      — this message"
+        "/status        — running state & next trade time\n"
+        "/trade         — trigger a trade immediately\n"
+        "/pause         — pause trading\n"
+        "/resume        — resume trading\n"
+        "/positions     — open positions\n"
+        "/pnl           — today's P&L\n"
+        "/diagnose      — sanity check (wallet, balance, CLOB creds, events)\n"
+        "/paper_status  — paper trading mode & hypothetical P&L\n"
+        "/paper_trades  — last 10 paper trades\n"
+        "/paper_resolve — resolve closed paper trades\n"
+        "/help          — this message"
     )
 
 
@@ -234,6 +297,9 @@ async def lifespan(app: FastAPI):
             ("positions", cmd_positions),
             ("pnl", cmd_pnl),
             ("diagnose", cmd_diagnose),
+            ("paper_status", cmd_paper_status),
+            ("paper_trades", cmd_paper_trades),
+            ("paper_resolve", cmd_paper_resolve),
             ("help", cmd_help),
         ]:
             _bot_app.add_handler(CommandHandler(cmd, fn))
@@ -346,5 +412,16 @@ def resume_trading():
     with _state_lock:
         _is_paused = False
     return {"status": "resumed"}
+
+
+@app.get("/paper/performance")
+def get_paper_performance():
+    if _trader is None:
+        return {"error": "Trader not initialised"}
+    try:
+        return _trader.paper_trader.get_performance_summary()
+    except Exception as e:
+        logger.error("Failed to fetch paper performance: %s", e)
+        return {"error": str(e)}
 
 

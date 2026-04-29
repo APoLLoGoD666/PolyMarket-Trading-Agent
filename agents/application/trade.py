@@ -1,4 +1,5 @@
 from agents.application.executor import Executor as Agent
+from agents.application.paper_trading import PaperTrader
 from agents.polymarket.gamma import GammaMarketClient as Gamma
 from agents.polymarket.polymarket import Polymarket
 
@@ -32,6 +33,10 @@ class Trader:
         self.polymarket = Polymarket()
         self.gamma = Gamma()
         self.agent = Agent()
+        self.paper_mode = os.getenv("PAPER_TRADING", "false").lower() == "true"
+        self.paper_trader = PaperTrader(polymarket=self.polymarket)
+        if self.paper_mode:
+            logger.warning("PAPER TRADING MODE ENABLED — no real orders will be placed")
 
     def pre_trade_logic(self) -> None:
         self.clear_local_dbs()
@@ -151,6 +156,20 @@ class Trader:
             logger.warning(msg)
             _send_telegram(msg)
             return None
+
+        if self.paper_mode:
+            record = self.paper_trader.record_paper_trade(market, amount, outcome, best_trade)
+            logger.info("6. PAPER TRADE recorded: %s", record["id"])
+            msg = (
+                f"PAPER TRADE (not real):\n"
+                f"{best_trade[:300]}\n\n"
+                f"Outcome: {record['outcome']}\n"
+                f"Trade size: ${amount:.2f}\n"
+                f"Predicted price: {record['predicted_price']}\n"
+                f"Live price at signal: {record['current_market_price']}"
+            )
+            _send_telegram(msg)
+            return {"trade": best_trade, "amount_usd": amount, "tx": "PAPER", "paper": record}
 
         try:
             trade = self.polymarket.execute_market_order(market, amount, outcome)
