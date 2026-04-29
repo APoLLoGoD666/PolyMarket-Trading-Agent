@@ -6,6 +6,7 @@ from agents.polymarket.polymarket import Polymarket
 import ast
 import logging
 import os
+import re
 import shutil
 
 import requests
@@ -135,6 +136,7 @@ class Trader:
 
         try:
             best_trade = self.agent.source_best_trade(market)
+            best_trade = re.sub(r'(?i)paper trade[^:]*:\s*', '', best_trade).strip()
         except Exception as e:
             msg = f"STEP 5 FAILED: Claude trade analysis raised an exception — {type(e).__name__}: {e}"
             logger.error(msg)
