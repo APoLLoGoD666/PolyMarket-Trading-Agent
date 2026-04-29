@@ -386,6 +386,11 @@ class Polymarket:
         options = PartialCreateOrderOptions(neg_risk=neg_risk)
         order_args = MarketOrderArgs(token_id=token_id, amount=amount, side=BUY)
         signed_order = self.client.create_market_order(order_args, options=options)
+        # Force signatureType to 0 for EOA direct signing
+        try:
+            signed_order.signatureType = 0
+        except Exception:
+            pass
         try:
             od = signed_order.dict()
             api_key = self.client.creds.api_key if self.client.creds else "NO_CREDS"
