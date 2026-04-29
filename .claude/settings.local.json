@@ -41,7 +41,13 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:github.com)",
       "Bash(railway redeploy *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(venv/Scripts/pip show *)",
+      "Bash(venv/Scripts/pip index *)",
+      "Bash(venv/Scripts/pip install *)",
+      "Bash(venv/Scripts/pip download *)",
+      "Read(//tmp/**)",
+      "Bash(xargs wc *)"
     ]
   }
 }
