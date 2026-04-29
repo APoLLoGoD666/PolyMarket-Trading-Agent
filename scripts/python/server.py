@@ -159,6 +159,50 @@ async def cmd_trade(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     asyncio.create_task(asyncio.to_thread(_run_trade))
 
 
+async def cmd_diagnose(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Run a sanity check and report results without placing any trade."""
+    if _trader is None:
+        await update.message.reply_text("❌ Trader not initialised yet.")
+        return
+
+    await update.message.reply_text("Running diagnostics — this may take ~30s...")
+
+    # 1. Wallet address
+    try:
+        wallet = _trader.polymarket.client.get_address()
+        await update.message.reply_text(f"✅ Wallet address: {wallet}")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Wallet address: {e}")
+
+    # 2. USDC balance
+    try:
+        balance = await asyncio.to_thread(_trader.polymarket.get_usdc_balance)
+        symbol = "✅" if balance > 0 else "❌"
+        await update.message.reply_text(f"{symbol} USDC balance: ${balance:.2f}")
+    except Exception as e:
+        await update.message.reply_text(f"❌ USDC balance error: {e}")
+
+    # 3. CLOB credentials
+    try:
+        creds = _trader.polymarket.credentials
+        if creds and creds.api_key:
+            await update.message.reply_text(f"✅ CLOB API key: {str(creds.api_key)[:12]}...")
+        else:
+            await update.message.reply_text("❌ CLOB credentials missing or null")
+    except Exception as e:
+        await update.message.reply_text(f"❌ CLOB credentials error: {e}")
+
+    # 4. Tradeable events count
+    try:
+        events = await asyncio.to_thread(_trader.polymarket.get_all_tradeable_events)
+        symbol = "✅" if events else "❌"
+        await update.message.reply_text(f"{symbol} Tradeable events: {len(events)}")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Tradeable events error: {e}")
+
+    await update.message.reply_text("Diagnostics complete.")
+
+
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "/status    — running state & next trade time\n"
@@ -167,6 +211,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/resume    — resume trading\n"
         "/positions — open positions\n"
         "/pnl       — today's P&L\n"
+        "/diagnose  — sanity check (wallet, balance, CLOB creds, events)\n"
         "/help      — this message"
     )
 
@@ -188,6 +233,7 @@ async def lifespan(app: FastAPI):
             ("resume", cmd_resume),
             ("positions", cmd_positions),
             ("pnl", cmd_pnl),
+            ("diagnose", cmd_diagnose),
             ("help", cmd_help),
         ]:
             _bot_app.add_handler(CommandHandler(cmd, fn))

@@ -128,10 +128,22 @@ class Trader:
             _send_telegram(msg)
             return None
 
-        best_trade = self.agent.source_best_trade(market)
+        try:
+            best_trade = self.agent.source_best_trade(market)
+        except Exception as e:
+            msg = f"STEP 5 FAILED: Claude trade analysis raised an exception — {type(e).__name__}: {e}"
+            logger.error(msg)
+            _send_telegram(msg)
+            return None
         logger.info("5. CALCULATED TRADE %s", best_trade)
 
-        amount, outcome = self.agent.format_trade_prompt_for_execution(best_trade)
+        try:
+            amount, outcome = self.agent.format_trade_prompt_for_execution(best_trade)
+        except Exception as e:
+            msg = f"STEP 5b FAILED: Could not parse trade parameters from Claude response — {type(e).__name__}: {e}"
+            logger.error(msg)
+            _send_telegram(msg)
+            return None
         logger.info("5b. TRADE SIZE $%.2f (capped at 10%% of wallet), OUTCOME: %s", amount, outcome)
 
         if amount < 1.0:

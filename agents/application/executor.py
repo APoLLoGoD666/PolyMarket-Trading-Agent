@@ -199,8 +199,21 @@ class Executor:
         if size > 1.0:
             size = size / 100.0
 
-        outcome_match = re.search(r'outcome\s*[:=]\s*[\'"]?(\w+)[\'"]?', best_trade, re.IGNORECASE)
-        outcome = outcome_match.group(1) if outcome_match else None
+        outcome = None
+        outcome_patterns = [
+            r'outcome\s*[:=]\s*[\'"]?(\w+)[\'"]?',
+            r'\*\*outcome\*\*\s*[:=]?\s*[\'"]?(\w+)[\'"]?',
+            r'(?:buy|purchasing|recommend(?:ed)?(?:\s+buying)?)\s+[\'"]?(\w+)[\'"]?',
+            r'\b(yes|no)\b',
+        ]
+        for pat in outcome_patterns:
+            m = re.search(pat, best_trade, re.IGNORECASE)
+            if m:
+                outcome = m.group(1)
+                log.info("Outcome matched by pattern %r → %r", pat, outcome)
+                break
+        if outcome is None:
+            log.warning("Could not parse outcome from trade response; will use first token. Response: %s", best_trade[:300])
         log.info("Parsed trade — size fraction: %.4f, outcome: %s", size, outcome)
 
         usdc_balance = self.polymarket.get_usdc_balance()

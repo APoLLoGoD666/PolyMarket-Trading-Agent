@@ -42,6 +42,7 @@ class SimpleMarket(BaseModel):
     outcomes: str
     outcome_prices: str
     clob_token_ids: Optional[str]
+    neg_risk: Optional[bool] = False
 
 
 class ClobReward(BaseModel):
