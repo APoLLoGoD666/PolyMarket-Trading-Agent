@@ -90,7 +90,7 @@ class Polymarket:
         )
 
     def _init_api_keys(self) -> None:
-        sig_type = int(os.getenv("POLY_SIGNATURE_TYPE", "0"))
+        sig_type = 0
         funder = os.getenv("POLY_FUNDER") or None
         clob_kwargs = {"signature_type": sig_type}
         if funder:
