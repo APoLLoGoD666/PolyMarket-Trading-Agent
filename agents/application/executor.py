@@ -75,6 +75,9 @@ class Executor:
             f"You are a Polymarket prediction market analyst.\n\n"
             f"Here are {len(sample)} active prediction market events:\n{lines}\n\n"
             f"Select the 4 most interesting and tradeable events for right now.\n"
+            f"Prefer markets that are currently active and resolving soon (within days or weeks). "
+            f"Avoid future sports tournaments, championships, or events more than 2 months away "
+            f"as these typically lack active orderbooks.\n"
             f"Reply with ONLY a comma-separated list of numbers, e.g.: 2,7,15,33"
         )
         try:
@@ -114,6 +117,14 @@ class Executor:
                     if not isinstance(market_data, dict) or "id" not in market_data:
                         log.warning("Skipping market_id=%s — unexpected response: %r", market_id, str(market_data)[:120])
                         continue
+                    raw_clob = market_data.get("clobTokenIds")
+                    raw_prices = market_data.get("outcomePrices")
+                    if not raw_clob or not raw_prices:
+                        log.warning(
+                            "Skipping market_id=%s — missing clobTokenIds=%r or outcomePrices=%r",
+                            market_id, raw_clob, raw_prices,
+                        )
+                        continue
                     formatted = self.polymarket.map_api_to_market(market_data)
                     markets.append(formatted)
                 except Exception as ex:
@@ -135,6 +146,8 @@ class Executor:
             f"You are a Polymarket prediction market analyst.\n\n"
             f"Here are {len(sample)} active markets:\n{lines}\n\n"
             f"Select the 4 markets most suitable for profitable trading right now.\n"
+            f"Only select markets where outcome_prices shows two values that sum close to 1.0 "
+            f"and are not both 0. Reject any market with empty or missing prices.\n"
             f"Reply with ONLY a comma-separated list of numbers, e.g.: 0,3,7,12"
         )
         try:
@@ -146,9 +159,16 @@ class Executor:
             log.warning("Claude market filter failed (%s) — using first 4 markets", e)
             indices = list(range(min(4, len(sample))))
 
+        # Post-filter: only keep Claude's picks that actually have tradeable data.
         result = []
         for i in indices:
             m = sample[i]
+            if not self._market_has_tradeable_data(m):
+                log.warning(
+                    "Dropping Claude-selected market index=%d %r — empty clob_token_ids or outcome_prices",
+                    i, m.get("question", "")[:80],
+                )
+                continue
             doc = _Document(
                 page_content=m.get("description") or m.get("question") or "",
                 metadata={
@@ -163,7 +183,47 @@ class Executor:
                 },
             )
             result.append((doc, 1.0))
+
+        # Fallback: if Claude's picks yielded fewer than 2 tradeable markets, scan the
+        # full sample and take the first 4 that have valid data.
+        if len(result) < 2:
+            log.warning(
+                "Claude picks yielded only %d tradeable market(s) — falling back to first 4 valid markets from sample",
+                len(result),
+            )
+            result = []
+            for m in sample:
+                if not self._market_has_tradeable_data(m):
+                    continue
+                doc = _Document(
+                    page_content=m.get("description") or m.get("question") or "",
+                    metadata={
+                        "id": str(m.get("id", "")),
+                        "question": m.get("question") or "",
+                        "outcomes": m.get("outcomes") or "[]",
+                        "outcome_prices": m.get("outcome_prices") or "[]",
+                        "clob_token_ids": m.get("clob_token_ids") or "[]",
+                        "active": bool(m.get("active", True)),
+                        "closed": bool(m.get("closed", False)),
+                        "neg_risk": bool(m.get("neg_risk", False)),
+                    },
+                )
+                result.append((doc, 1.0))
+                if len(result) == 4:
+                    break
+            log.info("Fallback selected %d markets with valid data", len(result))
+
         return result
+
+    @staticmethod
+    def _market_has_tradeable_data(m: dict) -> bool:
+        """Return True only if the market dict has non-empty CLOB token IDs and outcome prices."""
+        try:
+            clob_ids = ast.literal_eval(m.get("clob_token_ids") or "[]")
+            prices = ast.literal_eval(m.get("outcome_prices") or "[]")
+            return bool(clob_ids) and bool(prices)
+        except Exception:
+            return False
 
     @staticmethod
     def _clamp_price(price: float) -> float:
