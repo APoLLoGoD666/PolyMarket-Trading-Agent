@@ -89,31 +89,14 @@ class Polymarket:
             f"All Polygon RPC endpoints failed: {self.polygon_rpc_endpoints}"
         )
 
-    def derive_proxy_address(self, eoa_address: str) -> str:
-        factory = '0xaB45c5A4B0c941a2F231C04C3f49182e1A254052'
-        # CREATE2: keccak256(0xff ++ factory ++ salt ++ keccak256(initcode))
-        # salt is the EOA address padded to 32 bytes (right-aligned)
-        salt = Web3.to_bytes(hexstr=eoa_address).rjust(32, b'\x00')
-        # Polymarket proxy init code hash (known constant)
-        init_code_hash = bytes.fromhex('e34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54')
-        proxy_address = Web3.keccak(
-            b'\xff' +
-            bytes.fromhex(factory[2:]) +
-            salt +
-            init_code_hash
-        )[-20:]
-        return Web3.to_checksum_address(proxy_address)
-
     def _init_api_keys(self) -> None:
-        eoa = self.get_address_for_private_key()
-        proxy = self.derive_proxy_address(eoa)
-        sig_type = 1
-        clob_kwargs = {"signature_type": sig_type, "funder": proxy}
+        sig_type = 0
         self.client = ClobClient(
             self.clob_url, key=self.private_key, chain_id=self.chain_id,
-            **clob_kwargs,
+            signature_type=sig_type,
         )
-        print(f"ClobClient: address={eoa}, proxy(funder)={proxy}, sig_type={sig_type}")
+        eoa = self.get_address_for_private_key()
+        print(f"ClobClient: address={eoa}, sig_type={sig_type}")
         self.credentials = self.client.create_or_derive_api_creds()
         if self.credentials:
             print(f"CLOB creds OK: api_key={str(self.credentials.api_key)[:12]}...")
