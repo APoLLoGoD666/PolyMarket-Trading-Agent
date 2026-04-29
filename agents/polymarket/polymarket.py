@@ -46,10 +46,13 @@ class Polymarket:
         self.chain_id = 137  # POLYGON
         self.private_key = os.getenv("POLYGON_WALLET_PRIVATE_KEY")
         self.polygon_rpc_endpoints = [
+            "https://polygon-bor.publicnode.com",
+            "https://polygon.drpc.org",
+            "https://polygon.meowrpc.com",
+            "https://1rpc.io/matic",
             "https://polygon-rpc.com",
             "https://rpc-mainnet.matic.network",
             "https://matic-mainnet.chainstacklabs.com",
-            "https://polygon-bor.publicnode.com",
         ]
         self.w3 = self._connect_web3()
 
