@@ -126,6 +126,22 @@ class Executor:
                         )
                         continue
                     formatted = self.polymarket.map_api_to_market(market_data)
+
+                    clob_ids_raw = formatted.get("clob_token_ids", "[]")
+                    try:
+                        clob_ids = ast.literal_eval(clob_ids_raw) if isinstance(clob_ids_raw, str) else clob_ids_raw
+                    except Exception:
+                        clob_ids = []
+
+                    if not clob_ids:
+                        log.warning("Skipping market_id=%s — no clob_token_ids", market_id)
+                        continue
+
+                    has_book = any(self.polymarket.has_active_orderbook(tid) for tid in clob_ids)
+                    if not has_book:
+                        log.warning("Skipping market_id=%s — no active orderbook on CLOB for any token", market_id)
+                        continue
+
                     markets.append(formatted)
                 except Exception as ex:
                     log.warning("Skipping market_id=%s — error: %s", market_id, ex)

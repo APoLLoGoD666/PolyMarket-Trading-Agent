@@ -329,6 +329,14 @@ class Polymarket:
     def get_orderbook(self, token_id: str) -> OrderBookSummary:
         return self.client.get_order_book(token_id)
 
+    def has_active_orderbook(self, token_id: str) -> bool:
+        """Return True only if the CLOB confirms an orderbook exists for this token."""
+        try:
+            ob = self.client.get_order_book(token_id)
+            return bool(ob and (ob.bids or ob.asks))
+        except Exception:
+            return False
+
     def get_orderbook_price(self, token_id: str) -> float:
         return float(self.client.get_price(token_id))
 
