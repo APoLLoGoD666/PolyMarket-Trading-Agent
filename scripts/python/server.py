@@ -328,7 +328,6 @@ async def lifespan(app: FastAPI):
     _scheduler.add_job(_run_trade, "interval", minutes=60, id="trading_loop")
     _scheduler.start()
     logger.info("Trading scheduler started — running every 60 minutes")
-    threading.Thread(target=_trade_worker, daemon=True, name="trade-worker-startup").start()
 
     yield
 
