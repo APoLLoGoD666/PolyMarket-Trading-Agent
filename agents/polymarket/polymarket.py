@@ -93,7 +93,7 @@ class Polymarket:
         )
 
     def _init_api_keys(self) -> None:
-        sig_type = 2
+        sig_type = 0
         self.client = ClobClient(
             self.clob_url, key=self.private_key, chain_id=self.chain_id,
             signature_type=sig_type,
@@ -127,11 +127,13 @@ class Polymarket:
 
         self.client.set_api_creds(self.credentials)
 
+        # Attempt CLOB onboarding for fresh EOA wallets
         try:
-            self.client.post_order  # just verify client works
+            self.client.post_order  # verify client exists
+            nonce = self.client.get_order_book  # dummy check
             print("CLOB client ready")
         except Exception as e:
-            print(f"CLOB client check: {e}")
+            print(f"CLOB check: {e}")
 
     def _init_approvals(self, run: bool = False) -> None:
         if not run:
@@ -430,7 +432,9 @@ class Polymarket:
             print(f"    owner(api_key[:8]) = {str(api_key)[:8]}")
         except Exception as log_err:
             print(f"  Log error: {log_err}")
-        return self.client.post_order(signed_order, orderType=OrderType.GTC)
+        result = self.client.post_order(signed_order, orderType=OrderType.GTC)
+        print(f"  RAW POST RESPONSE: {result}")
+        return result
 
     def execute_market_order(self, market, amount, outcome: str = None) -> str:
         meta = market[0].dict()["metadata"]
