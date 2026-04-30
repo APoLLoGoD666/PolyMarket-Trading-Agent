@@ -93,7 +93,7 @@ class Polymarket:
         )
 
     def _init_api_keys(self) -> None:
-        sig_type = 0
+        sig_type = 2
         self.client = ClobClient(
             self.clob_url, key=self.private_key, chain_id=self.chain_id,
             signature_type=sig_type,
@@ -126,6 +126,12 @@ class Polymarket:
                 self.credentials = None
 
         self.client.set_api_creds(self.credentials)
+
+        try:
+            self.client.post_order  # just verify client works
+            print("CLOB client ready")
+        except Exception as e:
+            print(f"CLOB client check: {e}")
 
     def _init_approvals(self, run: bool = False) -> None:
         if not run:
@@ -452,9 +458,9 @@ class Polymarket:
             label = outcomes[idx] if idx < len(outcomes) else str(idx)
             print(f"Trying order: outcome={label}, token_id={token_id[:20]}..., amount=${amount:.2f}")
 
-            # Try neg_risk=False first (standard exchange), then neg_risk=True (negRisk exchange)
+            # Try neg_risk=True first (negRisk exchange), then neg_risk=False (standard exchange)
             # This works around cases where get_neg_risk() returns the wrong value
-            for neg_risk_flag in [False, True]:
+            for neg_risk_flag in [True, False]:
                 try:
                     resp = self._post_market_order(token_id, amount, neg_risk=neg_risk_flag)
                     print(f"Order accepted (neg_risk={neg_risk_flag}):", resp)
