@@ -100,12 +100,16 @@ class Polymarket:
         )
         eoa = self.get_address_for_private_key()
         print(f"ClobClient: address={eoa}, sig_type={sig_type}")
-        self.credentials = self.client.create_or_derive_api_creds()
-        if self.credentials:
-            print(f"CLOB creds OK: api_key={str(self.credentials.api_key)[:12]}...")
-        else:
-            print("CLOB creds FAILED: create_or_derive_api_creds returned None")
-        self.client.set_api_creds(self.credentials)
+        try:
+            self.credentials = self.client.create_or_derive_api_creds()
+            if self.credentials:
+                print(f"CLOB creds OK: api_key={str(self.credentials.api_key)[:12]}...")
+            else:
+                print("CLOB creds FAILED: returned None")
+            self.client.set_api_creds(self.credentials)
+        except Exception as e:
+            print(f"CLOB creds FAILED (wallet not onboarded): {e}")
+            self.credentials = None
 
     def _init_approvals(self, run: bool = False) -> None:
         if not run:
