@@ -456,8 +456,8 @@ class Polymarket:
     def get_usdc_balance(self) -> float:
         address = self.get_address_for_private_key()
         for token_address, label in [
-            (self.usdc_address, "native USDC"),
             (self.usdc_e_address, "USDC.e"),
+            (self.usdc_address, "native USDC"),
         ]:
             try:
                 contract = self.web3.eth.contract(address=token_address, abi=self.erc20_approve)

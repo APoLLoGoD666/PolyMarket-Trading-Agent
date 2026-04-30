@@ -117,6 +117,16 @@ class Trader:
                 i, meta.get("question", "")[:80], prices, clob_ids, neg_risk
             )
             if prices and clob_ids and not neg_risk:
+                # Verify CLOB actually has an active orderbook
+                token_id = clob_ids[0]
+                has_book = self.polymarket.has_active_orderbook(token_id)
+                logger.info(
+                    "4b. Orderbook check for %r (token %s...): %s",
+                    meta.get("question", "")[:60], token_id[:16], has_book
+                )
+                if not has_book:
+                    logger.info("4b. SKIPPING — no active orderbook")
+                    continue
                 market = candidate
                 market_meta = meta
                 break
