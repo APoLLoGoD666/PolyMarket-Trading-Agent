@@ -9,4 +9,4 @@ COPY . .
 
 ENV PYTHONPATH=/home
 
-CMD ["sh", "-c", "uvicorn scripts.python.server:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "uvicorn scripts.python.server:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1"]
