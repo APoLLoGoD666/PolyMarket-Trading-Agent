@@ -71,6 +71,13 @@ def _trade_worker():
 
 
 def _run_trade():
+    global _trader
+    if _trader is None:
+        try:
+            _trader = Trader()
+        except Exception as e:
+            logger.error("Trader init failed: %s", e)
+            return
     with _state_lock:
         paused = _is_paused
     if paused:
@@ -310,10 +317,14 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("TELEGRAM_BOT_TOKEN not set — Telegram bot disabled")
 
-    _trader = Trader()
+    try:
+        _trader = Trader()
+    except Exception as e:
+        logger.error("Trader init failed — server will start without trader: %s", e)
+        _trader = None
 
     try:
-        wallet_address = _trader.polymarket.client.get_address()
+        wallet_address = _trader.polymarket.client.get_address() if _trader else "unknown"
     except Exception:
         wallet_address = "unknown"
     logger.info("Bot wallet address: %s", wallet_address)
