@@ -100,16 +100,32 @@ class Polymarket:
         )
         eoa = self.get_address_for_private_key()
         print(f"ClobClient: address={eoa}, sig_type={sig_type}")
-        try:
-            self.credentials = self.client.create_or_derive_api_creds()
-            if self.credentials:
-                print(f"CLOB creds OK: api_key={str(self.credentials.api_key)[:12]}...")
-            else:
-                print("CLOB creds FAILED: returned None")
-            self.client.set_api_creds(self.credentials)
-        except Exception as e:
-            print(f"CLOB creds FAILED (wallet not onboarded): {e}")
-            self.credentials = None
+
+        # Use pre-stored creds from env if available (avoids derive API call on every startup)
+        clob_key = os.getenv("CLOB_API_KEY")
+        clob_secret = os.getenv("CLOB_SECRET")
+        clob_pass = os.getenv("CLOB_PASS_PHRASE")
+
+        if clob_key and clob_secret and clob_pass:
+            from py_clob_client.clob_types import ApiCreds
+            self.credentials = ApiCreds(
+                api_key=clob_key,
+                api_secret=clob_secret,
+                api_passphrase=clob_pass,
+            )
+            print(f"CLOB creds loaded from env: api_key={clob_key[:12]}...")
+        else:
+            try:
+                self.credentials = self.client.create_or_derive_api_creds()
+                if self.credentials:
+                    print(f"CLOB creds OK: api_key={str(self.credentials.api_key)[:12]}...")
+                else:
+                    print("CLOB creds FAILED: returned None")
+            except Exception as e:
+                print(f"CLOB creds FAILED (wallet not onboarded): {e}")
+                self.credentials = None
+
+        self.client.set_api_creds(self.credentials)
 
     def _init_approvals(self, run: bool = False) -> None:
         if not run:
