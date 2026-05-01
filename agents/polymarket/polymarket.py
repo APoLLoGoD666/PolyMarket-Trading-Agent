@@ -135,6 +135,21 @@ class Polymarket:
         except Exception as e:
             print(f"CLOB check: {e}")
 
+        # Relayer credentials
+        self.relayer_url = "https://relayer.polymarket.com"
+        self.relayer_api_key = os.getenv("RELAYER_API_KEY")
+        self.relayer_api_key_address = os.getenv("RELAYER_API_KEY_ADDRESS")
+        if self.relayer_api_key:
+            print(f"Relayer creds loaded: key={self.relayer_api_key[:12]}..., address={self.relayer_api_key_address}")
+        else:
+            print("Relayer creds not configured (RELAYER_API_KEY not set)")
+
+    def has_relayer_credentials(self) -> bool:
+        return bool(self.relayer_api_key)
+
+    def _relayer_headers(self) -> dict:
+        return {"RELAYER_API_KEY": self.relayer_api_key}
+
     def _init_approvals(self, run: bool = False) -> None:
         if not run:
             return
