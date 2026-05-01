@@ -93,10 +93,12 @@ class Polymarket:
         )
 
     def _init_api_keys(self) -> None:
-        sig_type = 0
+        sig_type = 1
+        proxy_wallet = os.getenv("POLY_PROXY_WALLET")
         self.client = ClobClient(
             self.clob_url, key=self.private_key, chain_id=self.chain_id,
             signature_type=sig_type,
+            funder=proxy_wallet,
         )
         eoa = self.get_address_for_private_key()
         print(f"ClobClient: address={eoa}, sig_type={sig_type}")
