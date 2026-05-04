@@ -14,20 +14,20 @@ from web3.constants import MAX_INT
 from web3.middleware import ExtraDataToPOAMiddleware
 
 import httpx
-from py_clob_client.client import ClobClient
-from py_clob_client.clob_types import ApiCreds
-from py_clob_client.constants import AMOY, POLYGON
+from py_clob_client_v2.client import ClobClient
+from py_clob_client_v2.clob_types import ApiCreds
+from py_clob_client_v2.constants import AMOY, POLYGON
 from py_order_utils.builders import OrderBuilder
 from py_order_utils.model import OrderData
 from py_order_utils.signer import Signer
-from py_clob_client.clob_types import (
+from py_clob_client_v2.clob_types import (
     OrderArgs,
     MarketOrderArgs,
     OrderType,
     OrderBookSummary,
     PartialCreateOrderOptions,
 )
-from py_clob_client.order_builder.constants import BUY
+from py_clob_client_v2.order_builder.constants import BUY
 
 from agents.utils.objects import SimpleMarket, SimpleEvent
 
@@ -108,7 +108,7 @@ class Polymarket:
         clob_pass = os.getenv("CLOB_PASS_PHRASE")
 
         if clob_key and clob_secret and clob_pass:
-            from py_clob_client.clob_types import ApiCreds
+            from py_clob_client_v2.clob_types import ApiCreds
             self.credentials = ApiCreds(
                 api_key=clob_key,
                 api_secret=clob_secret,
@@ -427,7 +427,7 @@ class Polymarket:
     def _post_market_order(self, token_id: str, amount: float, neg_risk: bool) -> dict:
         """Create and post a market order with an explicit neg_risk setting."""
         import json as _json
-        options = PartialCreateOrderOptions(neg_risk=neg_risk, feeRateBps=0)
+        options = PartialCreateOrderOptions(neg_risk=neg_risk)
         order_args = MarketOrderArgs(token_id=token_id, amount=amount, side=BUY)
         signed_order = self.client.create_market_order(order_args, options=options)
         try:
