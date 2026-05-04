@@ -65,6 +65,7 @@ class Polymarket:
         self.usdc_address = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"  # native USDC (Polygon)
         self.usdc_e_address = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"  # bridged USDC.e (legacy)
         self.ctf_address = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
+        self.proxy_wallet_address = "0x7ac6fc75a703dc1f307e545fc89555faaac48637"
 
         self.web3 = self._connect_web3()
         self.web3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
@@ -407,7 +408,7 @@ class Polymarket:
         maker_amount = amount if buy else 0
         taker_amount = amount if not buy else 0
         order_data = OrderData(
-            maker=self.get_address_for_private_key(),
+            maker=self.proxy_wallet_address,
             tokenId=market_token,
             makerAmount=maker_amount,
             takerAmount=taker_amount,
