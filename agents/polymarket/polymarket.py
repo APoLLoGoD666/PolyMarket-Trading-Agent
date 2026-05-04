@@ -411,7 +411,7 @@ class Polymarket:
             tokenId=market_token,
             makerAmount=maker_amount,
             takerAmount=taker_amount,
-            feeRateBps="1",
+            feeRateBps="0",
             nonce=nonce,
             side=side,
             expiration=expiration,
@@ -427,7 +427,7 @@ class Polymarket:
     def _post_market_order(self, token_id: str, amount: float, neg_risk: bool) -> dict:
         """Create and post a market order with an explicit neg_risk setting."""
         import json as _json
-        options = PartialCreateOrderOptions(neg_risk=neg_risk)
+        options = PartialCreateOrderOptions(neg_risk=neg_risk, feeRateBps=0)
         order_args = MarketOrderArgs(token_id=token_id, amount=amount, side=BUY)
         signed_order = self.client.create_market_order(order_args, options=options)
         try:
