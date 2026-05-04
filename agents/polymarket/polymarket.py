@@ -428,7 +428,8 @@ class Polymarket:
 
     def _post_market_order(self, token_id: str, amount: float, neg_risk: bool) -> dict:
         """Create and post a market order using create_and_post_order for POLY_1271 compatibility."""
-        from py_clob_client_v2.clob_types import OrderArgs, OrderType as OT, Side
+        from py_clob_client_v2.clob_types import OrderArgs
+        from py_clob_client_v2.order_builder.constants import BUY as Side
         options = PartialCreateOrderOptions(neg_risk=neg_risk)
         # Get best price from orderbook
         ob = self.client.get_order_book(token_id)
@@ -443,7 +444,7 @@ class Polymarket:
             token_id=token_id,
             price=price,
             size=size,
-            side=Side.BUY,
+            side=BUY,
         )
         print(f"  Placing order: token={token_id[:20]}... price={price} size={size} neg_risk={neg_risk}")
         result = self.client.create_and_post_order(order_args, options=options)
