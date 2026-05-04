@@ -94,11 +94,11 @@ class Polymarket:
         )
 
     def _init_api_keys(self) -> None:
-        sig_type = 1
+        sig_type = 0
         self.client = ClobClient(
             self.clob_url, key=self.private_key, chain_id=self.chain_id,
             signature_type=sig_type,
-            funder='0xccc88a9d1b4ed6b0eaba998850414b24f1c315be',
+            
         )
         eoa = self.get_address_for_private_key()
         print(f"ClobClient: address={eoa}, sig_type={sig_type}")
