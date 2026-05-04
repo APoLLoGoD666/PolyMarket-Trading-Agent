@@ -380,7 +380,7 @@ class Polymarket:
         """Return True only if the CLOB confirms an orderbook exists for this token."""
         try:
             ob = self.client.get_order_book(token_id)
-            return bool(ob and (ob.bids or ob.asks))
+            return bool(ob is not None)
         except Exception:
             return False
 
