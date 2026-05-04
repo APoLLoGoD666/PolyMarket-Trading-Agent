@@ -448,7 +448,7 @@ class Polymarket:
             print(f"    owner(api_key[:8]) = {str(api_key)[:8]}")
         except Exception as log_err:
             print(f"  Log error: {log_err}")
-        result = self.client.post_order(signed_order, orderType=OrderType.GTC)
+        result = self.client.post_order(signed_order, order_type=OrderType.GTC)
         print(f"  RAW POST RESPONSE: {result}")
         return result
 
