@@ -65,7 +65,7 @@ class Polymarket:
         self.usdc_address = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"  # native USDC (Polygon)
         self.usdc_e_address = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"  # bridged USDC.e (legacy)
         self.ctf_address = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
-        self.proxy_wallet_address = "0xccc88a9d1b4ed6b0eaba998850414b24f1c315be"
+        self.proxy_wallet_address = "0x979fc044ef825159e61ec60eb4adef1bcddab8a2"
 
         self.web3 = self._connect_web3()
         self.web3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
@@ -94,10 +94,11 @@ class Polymarket:
         )
 
     def _init_api_keys(self) -> None:
-        sig_type = 0
+        sig_type = 3
         self.client = ClobClient(
             self.clob_url, key=self.private_key, chain_id=self.chain_id,
             signature_type=sig_type,
+            funder='0x979fc044ef825159e61ec60eb4adef1bcddab8a2',
             
         )
         eoa = self.get_address_for_private_key()
